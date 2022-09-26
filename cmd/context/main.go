@@ -3,9 +3,11 @@ package main
 import (
 	"flag"
 	"kubeui/internal/app/kubeui"
+	"kubeui/internal/pkg/component/searchtable"
 	"kubeui/internal/pkg/k8s"
 	"log"
 	"path/filepath"
+	"sort"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -29,6 +31,7 @@ func newAppKeyMap() *appKeyMap {
 type model struct {
 	keys   *appKeyMap
 	config api.Config
+	table  searchtable.SearchTable
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -43,14 +46,24 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case error:
 		return m, tea.Quit
+
+	case searchtable.Selection:
+		err := k8s.SwitchContext(msg.Value, m.config)
+		if err != nil {
+			return m, func() tea.Msg { return err }
+		}
+		return m, tea.Quit
 	}
 
-	return m, nil
+	var cmd tea.Cmd
+	m.table, cmd = m.table.Update(msg)
+
+	return m, cmd
 
 }
 
 func (m model) View() string {
-	return "hello"
+	return m.table.View()
 }
 
 func (m model) Init() tea.Cmd {
@@ -73,9 +86,20 @@ func main() {
 		log.Fatalf("failed to load config")
 	}
 
+	items := []string{}
+
+	for k, _ := range rawConfig.Contexts {
+		items = append(items, k)
+	}
+
+	sort.Strings(items)
+
+	table := searchtable.New(items, 10, rawConfig.CurrentContext)
+
 	m := model{
 		keys:   newAppKeyMap(),
 		config: rawConfig,
+		table:  table,
 	}
 
 	program := kubeui.NewProgram(m)

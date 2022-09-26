@@ -14,6 +14,8 @@ import (
 var (
 	selectedPageStyle   = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "235", Dark: "252"})
 	unSelectedPageStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "250", Dark: "238"})
+	previousChoiceStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "200", Dark: "200"})
+	otherChoiceStyle    = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#e9f5f9", Dark: "#e9f5f9"})
 )
 
 type keyMap struct {
@@ -23,6 +25,12 @@ type keyMap struct {
 	left       key.Binding
 	right      key.Binding
 	exitSearch key.Binding
+	enter      key.Binding
+}
+
+// Selection represents the act of selecting an item.
+type Selection struct {
+	Value string
 }
 
 func newKeyMap() *keyMap {
@@ -51,6 +59,10 @@ func newKeyMap() *keyMap {
 			key.WithKeys("right"),
 			key.WithHelp("right", "move one page to the right, if search mode is activated then move input cursor one position to the right"),
 		),
+		enter: key.NewBinding(
+			key.WithKeys("enter"),
+			key.WithHelp("enter", "select an item"),
+		),
 	}
 }
 
@@ -58,6 +70,8 @@ type SearchTable struct {
 	keys   *keyMap
 	cursor int
 	items  []string
+
+	previousChoice string
 
 	currentItemsSlice []string
 	currentPage       int
@@ -86,7 +100,7 @@ func calcSlice(length, currentPage, pageSize int) (int, int) {
 	return currentPage * pageSize, currentPage*pageSize + pageSize
 }
 
-func New(items []string, pageSize int) SearchTable {
+func New(items []string, pageSize int, previousChoice string) SearchTable {
 	searchField := textinput.New()
 	searchField.Placeholder = ""
 	searchField.Focus()
@@ -102,6 +116,7 @@ func New(items []string, pageSize int) SearchTable {
 		keys:              newKeyMap(),
 		items:             items,
 		currentItemsSlice: items[sliceStart:sliceEnd],
+		previousChoice:    previousChoice,
 		pageSize:          pageSize,
 		numPages:          numPages,
 		searchField:       searchField,
@@ -118,6 +133,9 @@ func (st SearchTable) Update(msg tea.Msg) (SearchTable, tea.Cmd) {
 		st, cmd = updateInSearchMode(st, msg)
 	} else {
 		st, cmd = updateInselectMode(st, msg)
+		if cmd != nil {
+			return st, cmd
+		}
 	}
 
 	// Filter items based on the search value.
@@ -186,6 +204,12 @@ func updateInselectMode(st SearchTable, msg tea.Msg) (SearchTable, tea.Cmd) {
 			if st.currentPage < st.numPages-1 {
 				st.currentPage++
 			}
+
+		case key.Matches(msg, st.keys.enter):
+			item := st.currentItemsSlice[st.cursor]
+			return st, func() tea.Msg {
+				return Selection{Value: item}
+			}
 		}
 	}
 
@@ -220,7 +244,6 @@ func (n SearchTable) View() string {
 
 	// The header
 	var selectBuilder strings.Builder
-	selectBuilder.WriteString("Select a namespace\n\n")
 
 	// Iterate over the namespaces in the current page and print them out.
 	for i, item := range n.currentItemsSlice {
@@ -231,7 +254,13 @@ func (n SearchTable) View() string {
 			cursor = ">" // cursor!
 		}
 		// Render the row
-		selectBuilder.WriteString(fmt.Sprintf("%s %s\n", cursor, item))
+		if item == n.previousChoice {
+			//selectBuilder.WriteString(fmt.Sprintf("%s %s\n", cursor, item))
+			selectBuilder.WriteString(fmt.Sprintf("%s %s\n", cursor, previousChoiceStyle.Render(item)))
+		} else {
+			selectBuilder.WriteString(fmt.Sprintf("%s %s\n", cursor, item))
+		}
+
 	}
 
 	// Start building the pageinator view.

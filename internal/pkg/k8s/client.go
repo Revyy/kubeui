@@ -33,8 +33,6 @@ func NewKClientSet() (*kubernetes.Clientset, error) {
 		return nil, err
 	}
 
-	switchContext("", *kubeconfig)
-
 	return clientset, nil
 }
 
@@ -48,30 +46,17 @@ func NewRawConfig(context, kubeconfigPath string) (api.Config, error) {
 	return config.RawConfig()
 }
 
-func switchContext(ctx, kubeconfigPath string) (err error) {
-	loadingRules := &clientcmd.ClientConfigLoadingRules{ExplicitPath: kubeconfigPath}
-	configOverrides := &clientcmd.ConfigOverrides{}
+func SwitchContext(ctx string, config api.Config) (err error) {
 
-	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, configOverrides)
-	config, err := kubeConfig.RawConfig()
-	if err != nil {
-		return fmt.Errorf("error getting RawConfig: %w", err)
-	}
-
-	for k, v := range config.Contexts {
-		fmt.Printf("%s: %v", k, v)
-	}
-
-	/*if config.Contexts[ctx] == nil {
+	if config.Contexts[ctx] == nil {
 		return fmt.Errorf("context %s doesn't exists", ctx)
 	}
 
 	config.CurrentContext = ctx
 	err = clientcmd.ModifyConfig(clientcmd.NewDefaultPathOptions(), config, true)
 	if err != nil {
-		return fmt.Errorf("error ModifyConfig: %w", err)
+		return fmt.Errorf("error ModifyConfig: %v", err)
 	}
 
-	fmt.Printf("Switched to context \"%s\"", ctx)*/
 	return nil
 }
