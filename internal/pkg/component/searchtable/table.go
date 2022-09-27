@@ -14,7 +14,7 @@ import (
 var (
 	selectedPageStyle   = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "235", Dark: "252"})
 	unSelectedPageStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "250", Dark: "238"})
-	previousChoiceStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "200", Dark: "200"})
+	highlightedStyle    = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "200", Dark: "200"})
 )
 
 type keyMap struct {
@@ -41,6 +41,11 @@ type Deletion struct {
 // UpdateItems resets the base items list for the table to the items passed in.
 type UpdateItems struct {
 	Items []string
+}
+
+// UpdateHighlighted sets a new previous choice values.
+type UpdateHighlighted struct {
+	Item string
 }
 
 func newKeyMap() *keyMap {
@@ -85,7 +90,7 @@ type SearchTable struct {
 	cursor int
 	items  []string
 
-	previousChoice string
+	highlighted string
 
 	allowDelete       bool
 	currentItemsSlice []string
@@ -132,7 +137,7 @@ func New(items []string, pageSize int, previousChoice string, allowDelete bool) 
 		items:             items,
 		currentItemsSlice: items[sliceStart:sliceEnd],
 		allowDelete:       allowDelete,
-		previousChoice:    previousChoice,
+		highlighted:       previousChoice,
 		pageSize:          pageSize,
 		numPages:          numPages,
 		searchField:       searchField,
@@ -154,9 +159,11 @@ func (st SearchTable) Update(msg tea.Msg) (SearchTable, tea.Cmd) {
 		}
 	}
 
-	// If we got an updateItems command then we update the base set of items.
-	if updateItems, ok := msg.(UpdateItems); ok {
-		st.items = updateItems.Items
+	switch m := msg.(type) {
+	case UpdateItems:
+		st.items = m.Items
+	case UpdateHighlighted:
+		st.highlighted = m.Item
 	}
 
 	// Filter items based on the search value.
@@ -280,9 +287,9 @@ func (n SearchTable) View() string {
 			cursor = ">" // cursor!
 		}
 		// Render the row
-		if item == n.previousChoice {
+		if item == n.highlighted {
 			//selectBuilder.WriteString(fmt.Sprintf("%s %s\n", cursor, item))
-			selectBuilder.WriteString(fmt.Sprintf("%s %s\n", cursor, previousChoiceStyle.Render(item)))
+			selectBuilder.WriteString(fmt.Sprintf("%s %s\n", cursor, highlightedStyle.Render(item)))
 		} else {
 			selectBuilder.WriteString(fmt.Sprintf("%s %s\n", cursor, item))
 		}

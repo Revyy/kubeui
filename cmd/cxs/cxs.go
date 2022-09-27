@@ -56,7 +56,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if err != nil {
 			return m, func() tea.Msg { return err }
 		}
-		return m, tea.Quit
+		var cmd tea.Cmd
+		m.table, cmd = m.table.Update(searchtable.UpdateHighlighted{Item: msg.Value})
+		return m, cmd
 	case searchtable.Deletion:
 		m.contextToDelete = msg.Value
 		dialog := confirm.New([]string{"Yes", "No"}, fmt.Sprintf("Are you sure you want to delete %s", msg.Value))
@@ -65,6 +67,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case confirm.ButtonPress:
 
 		if msg.Button != "Yes" {
+			m.contextToDelete = ""
 			m.activeDialog = nil
 			return m, nil
 		}
@@ -98,8 +101,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		m.contextToDelete = ""
 		m.activeDialog = nil
-
-		return m, func() tea.Msg { return searchtable.UpdateItems{Items: items} }
+		var cmd tea.Cmd
+		m.table, cmd = m.table.Update(searchtable.UpdateItems{Items: items})
+		return m, cmd
 	}
 
 	if m.activeDialog != nil {
