@@ -21,7 +21,7 @@ func NewNameSpaceSelector(namespaces []v1.Namespace) *NameSpaceSelector {
 		items = append(items, ns.Name)
 	}
 
-	searchTable := searchtable.New(items, 5, "")
+	searchTable := searchtable.New(items, 5, "", false)
 
 	return &NameSpaceSelector{
 		namespaces:  namespaces,

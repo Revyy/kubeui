@@ -2,17 +2,18 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"kubeui/internal/app/kubeui"
+	"kubeui/internal/pkg/component/confirm"
 	"kubeui/internal/pkg/component/searchtable"
 	"kubeui/internal/pkg/k8s"
 	"log"
-	"path/filepath"
 	"sort"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
+	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
-	"k8s.io/client-go/util/homedir"
 )
 
 type appKeyMap struct {
@@ -29,9 +30,12 @@ func newAppKeyMap() *appKeyMap {
 }
 
 type model struct {
-	keys   *appKeyMap
-	config api.Config
-	table  searchtable.SearchTable
+	keys            *appKeyMap
+	config          api.Config
+	configAccess    clientcmd.ConfigAccess
+	table           searchtable.SearchTable
+	activeDialog    *confirm.Dialog
+	contextToDelete string
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -48,11 +52,60 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 
 	case searchtable.Selection:
-		err := k8s.SwitchContext(msg.Value, m.config)
+		err := k8s.SwitchContext(msg.Value, m.configAccess, m.config)
 		if err != nil {
 			return m, func() tea.Msg { return err }
 		}
 		return m, tea.Quit
+	case searchtable.Deletion:
+		m.contextToDelete = msg.Value
+		dialog := confirm.New([]string{"Yes", "No"}, fmt.Sprintf("Are you sure you want to delete %s", msg.Value))
+		m.activeDialog = &dialog
+		return m, nil
+	case confirm.ButtonPress:
+
+		if msg.Button != "Yes" {
+			m.activeDialog = nil
+			return m, nil
+		}
+
+		err := k8s.DeleteContext(m.contextToDelete, m.configAccess, m.config)
+
+		if err != nil {
+			return m, tea.Quit
+		}
+
+		err = k8s.DeleteClusterEntry(m.contextToDelete, m.configAccess, m.config)
+
+		if err != nil {
+			return m, tea.Quit
+		}
+
+		err = k8s.DeleteUser(m.contextToDelete, m.configAccess, m.config)
+
+		if err != nil {
+			return m, tea.Quit
+		}
+
+		items := []string{}
+
+		for k := range m.config.Contexts {
+			if k != m.contextToDelete {
+				items = append(items, k)
+			}
+		}
+		sort.Strings(items)
+
+		m.contextToDelete = ""
+		m.activeDialog = nil
+
+		return m, func() tea.Msg { return searchtable.UpdateItems{Items: items} }
+	}
+
+	if m.activeDialog != nil {
+		dialog, cmd := m.activeDialog.Update(msg)
+		m.activeDialog = &dialog
+		return m, cmd
 	}
 
 	var cmd tea.Cmd
@@ -63,6 +116,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() string {
+
+	if m.activeDialog != nil {
+		return m.activeDialog.View()
+	}
+
 	return m.table.View()
 }
 
@@ -72,34 +130,35 @@ func (m model) Init() tea.Cmd {
 
 func main() {
 
-	var kubeconfig *string
-	if home := homedir.HomeDir(); home != "" {
-		kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
-	} else {
-		kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
-	}
+	// If a specific kubeconfig file is specified then we load that, otherwise the defaults will be loaded.
+	kubeconfig := flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
 	flag.Parse()
 
-	rawConfig, err := k8s.NewRawConfig("", *kubeconfig)
+	clientConfig := k8s.NewClientConfig("", *kubeconfig)
+
+	rawConfig, err := clientConfig.RawConfig()
 
 	if err != nil {
 		log.Fatalf("failed to load config")
 	}
 
+	configAccess := clientConfig.ConfigAccess()
+
 	items := []string{}
 
-	for k, _ := range rawConfig.Contexts {
+	for k := range rawConfig.Contexts {
 		items = append(items, k)
 	}
 
 	sort.Strings(items)
 
-	table := searchtable.New(items, 10, rawConfig.CurrentContext)
+	table := searchtable.New(items, 10, rawConfig.CurrentContext, true)
 
 	m := model{
-		keys:   newAppKeyMap(),
-		config: rawConfig,
-		table:  table,
+		keys:         newAppKeyMap(),
+		config:       rawConfig,
+		configAccess: configAccess,
+		table:        table,
 	}
 
 	program := kubeui.NewProgram(m)

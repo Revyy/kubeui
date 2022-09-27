@@ -36,26 +36,94 @@ func NewKClientSet() (*kubernetes.Clientset, error) {
 	return clientset, nil
 }
 
-func NewRawConfig(context, kubeconfigPath string) (api.Config, error) {
-	config := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
-		&clientcmd.ClientConfigLoadingRules{ExplicitPath: kubeconfigPath},
+func NewClientConfig(context, kubeconfigPath string) clientcmd.ClientConfig {
+
+	clientConfigLoadRules := clientcmd.NewDefaultPathOptions().LoadingRules
+
+	if kubeconfigPath != "" {
+		clientConfigLoadRules = &clientcmd.ClientConfigLoadingRules{ExplicitPath: kubeconfigPath}
+	}
+
+	return clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
+		clientConfigLoadRules,
 		&clientcmd.ConfigOverrides{
 			CurrentContext: context,
 		})
-
-	return config.RawConfig()
 }
 
-func SwitchContext(ctx string, config api.Config) (err error) {
+func SwitchContext(ctx string, configAccess clientcmd.ConfigAccess, config api.Config) (err error) {
 
 	if config.Contexts[ctx] == nil {
 		return fmt.Errorf("context %s doesn't exists", ctx)
 	}
 
 	config.CurrentContext = ctx
-	err = clientcmd.ModifyConfig(clientcmd.NewDefaultPathOptions(), config, true)
+	err = clientcmd.ModifyConfig(configAccess, config, true)
 	if err != nil {
 		return fmt.Errorf("error ModifyConfig: %v", err)
+	}
+
+	return nil
+}
+
+func DeleteContext(ctx string, configAccess clientcmd.ConfigAccess, config api.Config) (err error) {
+
+	configFile := configAccess.GetDefaultFilename()
+	if configAccess.IsExplicitFile() {
+		configFile = configAccess.GetExplicitFile()
+	}
+
+	_, ok := config.Contexts[ctx]
+	if !ok {
+		return fmt.Errorf("context %s, is not in %s", ctx, configFile)
+	}
+
+	delete(config.Contexts, ctx)
+
+	if err := clientcmd.ModifyConfig(configAccess, config, true); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func DeleteUser(user string, configAccess clientcmd.ConfigAccess, config api.Config) (err error) {
+
+	configFile := configAccess.GetDefaultFilename()
+	if configAccess.IsExplicitFile() {
+		configFile = configAccess.GetExplicitFile()
+	}
+
+	_, ok := config.AuthInfos[user]
+	if !ok {
+		return fmt.Errorf("user %s, is not in %s", user, configFile)
+	}
+
+	delete(config.AuthInfos, user)
+
+	if err := clientcmd.ModifyConfig(configAccess, config, true); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func DeleteClusterEntry(cluster string, configAccess clientcmd.ConfigAccess, config api.Config) (err error) {
+
+	configFile := configAccess.GetDefaultFilename()
+	if configAccess.IsExplicitFile() {
+		configFile = configAccess.GetExplicitFile()
+	}
+
+	_, ok := config.Clusters[cluster]
+	if !ok {
+		return fmt.Errorf("cluster %s, is not in %s", cluster, configFile)
+	}
+
+	delete(config.Clusters, cluster)
+
+	if err := clientcmd.ModifyConfig(configAccess, config, true); err != nil {
+		return err
 	}
 
 	return nil

@@ -15,7 +15,6 @@ var (
 	selectedPageStyle   = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "235", Dark: "252"})
 	unSelectedPageStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "250", Dark: "238"})
 	previousChoiceStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "200", Dark: "200"})
-	otherChoiceStyle    = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#e9f5f9", Dark: "#e9f5f9"})
 )
 
 type keyMap struct {
@@ -26,11 +25,22 @@ type keyMap struct {
 	right      key.Binding
 	exitSearch key.Binding
 	enter      key.Binding
+	delete     key.Binding
 }
 
 // Selection represents the act of selecting an item.
 type Selection struct {
 	Value string
+}
+
+// Deletion represents the act of deleting an item.
+type Deletion struct {
+	Value string
+}
+
+// UpdateItems resets the base items list for the table to the items passed in.
+type UpdateItems struct {
+	Items []string
 }
 
 func newKeyMap() *keyMap {
@@ -63,6 +73,10 @@ func newKeyMap() *keyMap {
 			key.WithKeys("enter"),
 			key.WithHelp("enter", "select an item"),
 		),
+		delete: key.NewBinding(
+			key.WithKeys("delete"),
+			key.WithHelp("delete", "delete an item"),
+		),
 	}
 }
 
@@ -73,6 +87,7 @@ type SearchTable struct {
 
 	previousChoice string
 
+	allowDelete       bool
 	currentItemsSlice []string
 	currentPage       int
 	pageSize          int
@@ -100,7 +115,7 @@ func calcSlice(length, currentPage, pageSize int) (int, int) {
 	return currentPage * pageSize, currentPage*pageSize + pageSize
 }
 
-func New(items []string, pageSize int, previousChoice string) SearchTable {
+func New(items []string, pageSize int, previousChoice string, allowDelete bool) SearchTable {
 	searchField := textinput.New()
 	searchField.Placeholder = ""
 	searchField.Focus()
@@ -116,6 +131,7 @@ func New(items []string, pageSize int, previousChoice string) SearchTable {
 		keys:              newKeyMap(),
 		items:             items,
 		currentItemsSlice: items[sliceStart:sliceEnd],
+		allowDelete:       allowDelete,
 		previousChoice:    previousChoice,
 		pageSize:          pageSize,
 		numPages:          numPages,
@@ -136,6 +152,11 @@ func (st SearchTable) Update(msg tea.Msg) (SearchTable, tea.Cmd) {
 		if cmd != nil {
 			return st, cmd
 		}
+	}
+
+	// If we got an updateItems command then we update the base set of items.
+	if updateItems, ok := msg.(UpdateItems); ok {
+		st.items = updateItems.Items
 	}
 
 	// Filter items based on the search value.
@@ -209,6 +230,11 @@ func updateInselectMode(st SearchTable, msg tea.Msg) (SearchTable, tea.Cmd) {
 			item := st.currentItemsSlice[st.cursor]
 			return st, func() tea.Msg {
 				return Selection{Value: item}
+			}
+		case key.Matches(msg, st.keys.delete) && st.allowDelete:
+			item := st.currentItemsSlice[st.cursor]
+			return st, func() tea.Msg {
+				return Deletion{Value: item}
 			}
 		}
 	}
