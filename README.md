@@ -1,5 +1,7 @@
 # KubeUI
 
+DISCLAIMER: THIS IS A WORK IN PROGRESS AND EXPERIMENTAL REPOSITORY
+
 A collection of terminal gui based utilities making working with kubernetes easier.
 
 ## Installation
