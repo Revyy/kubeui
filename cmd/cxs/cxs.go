@@ -16,10 +16,13 @@ import (
 	"k8s.io/client-go/tools/clientcmd/api"
 )
 
+// appKeyMap defines the keys that are handled at the top level in the application.
+// These keys will be checked before passing along a msg to underlying components.
 type appKeyMap struct {
 	quit key.Binding
 }
 
+// newAppKeyMap defines the actual key bindings and creates an appKeyMap.
 func newAppKeyMap() *appKeyMap {
 	return &appKeyMap{
 		quit: key.NewBinding(
@@ -29,12 +32,29 @@ func newAppKeyMap() *appKeyMap {
 	}
 }
 
+// model defines the base model of the application.
 type model struct {
-	keys            *appKeyMap
-	config          api.Config
-	configAccess    clientcmd.ConfigAccess
-	table           searchtable.SearchTable
-	activeDialog    *confirm.Dialog
+	// application level keybindings
+	keys *appKeyMap
+
+	// kubernetes config object.
+	config api.Config
+
+	// object defining how the kubernetes config was located and put together.
+	// needed in order to modify the config files on disc.
+	configAccess clientcmd.ConfigAccess
+
+	// searchtable used to select and delete contexts.
+	table searchtable.SearchTable
+
+	// Yes/No dialog.
+	// If non nil then the dialog is considered to be active.
+	// A new dialog is created when needed.
+	activeDialog *confirm.Dialog
+
+	// Used to store the id of the context to delete.
+	// Needed as we use a confirm dialog to get approval before deleting which
+	// means that we need to do it across multiple calls to the Update function.
 	contextToDelete string
 }
 

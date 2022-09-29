@@ -11,6 +11,7 @@ import (
 	"k8s.io/client-go/util/homedir"
 )
 
+// NewKClientSet creates a kubernetes ClientSet that can be used to issue kubernetes commands.
 func NewKClientSet() (*kubernetes.Clientset, error) {
 
 	var kubeconfig *string
@@ -36,6 +37,7 @@ func NewKClientSet() (*kubernetes.Clientset, error) {
 	return clientset, nil
 }
 
+// NewClientConfig creates a ClientConfig object representing the kubeconfig of the user.
 func NewClientConfig(context, kubeconfigPath string) clientcmd.ClientConfig {
 
 	clientConfigLoadRules := clientcmd.NewDefaultPathOptions().LoadingRules
@@ -51,6 +53,7 @@ func NewClientConfig(context, kubeconfigPath string) clientcmd.ClientConfig {
 		})
 }
 
+// SwitchContext changes the active context in a kubeconfig.
 func SwitchContext(ctx string, configAccess clientcmd.ConfigAccess, config api.Config) (err error) {
 
 	if config.Contexts[ctx] == nil {
@@ -66,6 +69,7 @@ func SwitchContext(ctx string, configAccess clientcmd.ConfigAccess, config api.C
 	return nil
 }
 
+// DeleteContext deletes a context from a kubeconfig file.
 func DeleteContext(ctx string, configAccess clientcmd.ConfigAccess, config api.Config) (err error) {
 
 	configFile := configAccess.GetDefaultFilename()
@@ -87,6 +91,7 @@ func DeleteContext(ctx string, configAccess clientcmd.ConfigAccess, config api.C
 	return nil
 }
 
+// DeleteUser deletes a user entry from a kubeconfig file.
 func DeleteUser(user string, configAccess clientcmd.ConfigAccess, config api.Config) (err error) {
 
 	configFile := configAccess.GetDefaultFilename()
@@ -108,6 +113,7 @@ func DeleteUser(user string, configAccess clientcmd.ConfigAccess, config api.Con
 	return nil
 }
 
+// DeleteClusterEntry deletes a cluster entry from a kubeconfig file.
 func DeleteClusterEntry(cluster string, configAccess clientcmd.ConfigAccess, config api.Config) (err error) {
 
 	configFile := configAccess.GetDefaultFilename()
