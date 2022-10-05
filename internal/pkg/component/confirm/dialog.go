@@ -12,25 +12,25 @@ var (
 	selectedButtonStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "200", Dark: "200"})
 )
 
-type keyMap struct {
-	left  key.Binding
-	right key.Binding
-	enter key.Binding
+type KeyMap struct {
+	Left  key.Binding
+	Right key.Binding
+	Enter key.Binding
 }
 
-func newKeyMap() *keyMap {
-	return &keyMap{
-		left: key.NewBinding(
+func newKeyMap() *KeyMap {
+	return &KeyMap{
+		Left: key.NewBinding(
 			key.WithKeys("left"),
-			key.WithHelp("left", "move one page to the left, if search mode is activated then move input cursor one position to the left"),
+			key.WithHelp("left", "Select the button to the left"),
 		),
-		right: key.NewBinding(
+		Right: key.NewBinding(
 			key.WithKeys("right"),
-			key.WithHelp("right", "move one page to the right, if search mode is activated then move input cursor one position to the right"),
+			key.WithHelp("right", "Select the button to the right"),
 		),
-		enter: key.NewBinding(
+		Enter: key.NewBinding(
 			key.WithKeys("enter"),
-			key.WithHelp("enter", "press a button"),
+			key.WithHelp("enter", "Make a choice"),
 		),
 	}
 }
@@ -41,7 +41,7 @@ type ButtonPress struct {
 }
 
 type Dialog struct {
-	keys    *keyMap
+	Keys    *KeyMap
 	cursor  int
 	buttons []string
 	text    string
@@ -50,7 +50,7 @@ type Dialog struct {
 func New(buttons []string, text string) Dialog {
 
 	return Dialog{
-		keys:    newKeyMap(),
+		Keys:    newKeyMap(),
 		buttons: buttons,
 		cursor:  0,
 		text:    text,
@@ -60,20 +60,19 @@ func New(buttons []string, text string) Dialog {
 func (d Dialog) Update(msg tea.Msg) (Dialog, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		// Cool, what was the actual key pressed?
 		switch {
 
-		case key.Matches(msg, d.keys.left):
+		case key.Matches(msg, d.Keys.Left):
 			if d.cursor > 0 {
 				d.cursor--
 			}
 
-		case key.Matches(msg, d.keys.right):
+		case key.Matches(msg, d.Keys.Right):
 			if d.cursor < len(d.buttons)-1 {
 				d.cursor++
 			}
 
-		case key.Matches(msg, d.keys.enter):
+		case key.Matches(msg, d.Keys.Enter):
 			button := d.buttons[d.cursor]
 			return d, func() tea.Msg {
 				return ButtonPress{
