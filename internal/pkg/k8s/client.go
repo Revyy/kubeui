@@ -54,10 +54,16 @@ func NewClientConfig(context, kubeconfigPath string) clientcmd.ClientConfig {
 }
 
 // SwitchContext changes the active context in a kubeconfig.
-func SwitchContext(ctx string, configAccess clientcmd.ConfigAccess, config api.Config) (err error) {
+func SwitchContext(ctx, namespace string, configAccess clientcmd.ConfigAccess, config api.Config) (err error) {
 
-	if config.Contexts[ctx] == nil {
+	kubeCtx, ok := config.Contexts[ctx]
+
+	if !ok {
 		return fmt.Errorf("context %s doesn't exists", ctx)
+	}
+
+	if namespace != "" {
+		kubeCtx.Namespace = namespace
 	}
 
 	config.CurrentContext = ctx

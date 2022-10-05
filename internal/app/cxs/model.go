@@ -137,7 +137,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 
 	case searchtable.Selection:
-		err := k8s.SwitchContext(msg.Value, m.configAccess, m.config)
+		err := k8s.SwitchContext(msg.Value, "", m.configAccess, m.config)
 		if err != nil {
 			return m, func() tea.Msg { return err }
 		}
