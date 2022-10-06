@@ -6,6 +6,7 @@ import (
 
 	"kubeui/internal/app/pods/message"
 	"kubeui/internal/pkg/component/searchtable"
+	"kubeui/internal/pkg/kubeui"
 	"kubeui/internal/pkg/kubeui/help"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -49,6 +50,7 @@ const (
 	INITIALIZING AppState = iota
 	MAIN
 	NAMESPACE_SELECT
+	ERROR
 )
 
 // Model defines the base Model of the application.
@@ -81,6 +83,9 @@ type Model struct {
 	// Indicates which state the application is in.
 	state AppState
 
+	// Error message to be displayed.
+	errorMessage string
+
 	// Namespaces in current cluster.
 	namespaces []string
 
@@ -107,12 +112,22 @@ func NewModel(rawConfig api.Config, configAccess clientcmd.ConfigAccess, clientS
 // ShortHelp returns keybindings to be shown in the mini help view. It's part
 // of the key.Map interface.
 func (m Model) ShortHelp() []key.Binding {
+
+	if m.state == ERROR {
+		return []key.Binding{m.keys.quit}
+	}
+
 	return []key.Binding{m.keys.help, m.keys.quit, m.keys.selectNamespace}
 }
 
 // FullHelp returns keybindings for the expanded help view. It's part of the
 // key.Map interface.
 func (m Model) FullHelp() [][]key.Binding {
+
+	if m.state == ERROR {
+		return [][]key.Binding{{m.keys.quit}}
+	}
+
 	bindings := [][]key.Binding{
 		{m.keys.help, m.keys.quit, m.keys.selectNamespace},
 	}
@@ -130,6 +145,14 @@ func (m Model) FullHelp() [][]key.Binding {
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
+	// If we are in the error state we only allow quitting.
+	if m.state == ERROR {
+		if k, ok := msg.(tea.KeyMsg); ok && key.Matches(k, m.keys.quit) {
+			return m, tea.Quit
+		}
+		return m, nil
+	}
+
 	switch msg := msg.(type) {
 
 	case tea.WindowSizeMsg:
@@ -144,8 +167,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keys.quit):
 			return m, tea.Quit
 		case key.Matches(msg, m.keys.help):
-			m.help.ShowAll = !m.help.ShowAll
-			return m, nil
+			//m.help.ShowAll = !m.help.ShowAll
+			return m, func() tea.Msg {
+				return fmt.Errorf("some error bla bla")
+			}
 
 		case key.Matches(msg, m.keys.selectNamespace):
 			m.namespaceTable = searchtable.New(m.namespaces, 10, m.currentNamespace, false, searchtable.Options{SingularItemName: "namespace"})
@@ -159,7 +184,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case error:
-		return m, tea.Quit
+		m.state = ERROR
+		m.errorMessage = msg.Error()
+		return m, nil
 
 	case message.Initialization:
 		m.namespaces = slices.Map(msg.NamespaceList.Items, func(n v1.Namespace) string {
@@ -238,6 +265,12 @@ func (m Model) View() string {
 		return builder.String()
 	}
 
+	if m.state == ERROR {
+		builder.WriteString("An error occured\n\n")
+		builder.WriteString(errorMessageStyle.Render(kubeui.LineBreak(m.errorMessage, m.windowSize.Width)))
+		return builder.String()
+	}
+
 	statusBar := statusBarStyle.Width(m.windowSize.Width - 1).Render(fmt.Sprintf("Namespace: %s", m.currentNamespace))
 	builder.WriteString(statusBar + "\n")
 
@@ -251,6 +284,7 @@ func (m Model) View() string {
 
 	case NAMESPACE_SELECT:
 		builder.WriteString(m.namespaceTable.View())
+
 	}
 
 	return builder.String()
