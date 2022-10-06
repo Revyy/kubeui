@@ -47,7 +47,7 @@ func NewModel(rawConfig api.Config, configAccess clientcmd.ConfigAccess) *Model 
 
 	sort.Strings(items)
 
-	table := searchtable.New(items, 10, rawConfig.CurrentContext, true)
+	table := searchtable.New(items, 10, rawConfig.CurrentContext, true, searchtable.Options{SingularItemName: "context"})
 
 	return &Model{
 		keys:         newAppKeyMap(),
@@ -100,16 +100,7 @@ func (m Model) ShortHelp() []key.Binding {
 func (m Model) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{m.keys.help, m.keys.quit},
-		{
-			m.table.Keys.Up,
-			m.table.Keys.Left,
-			m.table.Keys.Right,
-			m.table.Keys.Down,
-			m.table.Keys.Enter,
-			m.table.Keys.Delete,
-			m.table.Keys.Search,
-			m.table.Keys.ExitSearch,
-		},
+		m.table.KeyList(),
 	}
 }
 

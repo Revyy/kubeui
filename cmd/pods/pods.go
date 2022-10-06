@@ -32,7 +32,7 @@ func main() {
 
 	m := pods.NewModel(rawConfig, configAccess, clientSet)
 
-	program := kubeui.NewProgram(m)
+	program := kubeui.NewProgram(m, true)
 	kubeui.StartProgram(program)
 
 }

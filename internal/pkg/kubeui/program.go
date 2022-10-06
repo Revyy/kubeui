@@ -7,13 +7,19 @@ import (
 )
 
 // NewProgram creates a new bubbletea program given a bubbletea model.
-func NewProgram(model tea.Model) *tea.Program {
+func NewProgram(model tea.Model, useAltScreen bool) *tea.Program {
 
 	// Needed as lipgloss uses stdout/stdin to communicate with the terminal to check if it has a dark or light background
 	// Once the bubbletea program starts it takes control of stdout and stdin.
 	lipgloss.SetHasDarkBackground(termenv.HasDarkBackground())
 
-	p := tea.NewProgram(model)
+	options := []tea.ProgramOption{}
+
+	if useAltScreen {
+		options = append(options, tea.WithAltScreen())
+	}
+
+	p := tea.NewProgram(model, options...)
 
 	return p
 }

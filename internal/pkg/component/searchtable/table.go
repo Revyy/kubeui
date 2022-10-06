@@ -19,11 +19,11 @@ var (
 
 type KeyMap struct {
 	Search     key.Binding
+	ExitSearch key.Binding
 	Up         key.Binding
 	Down       key.Binding
 	Left       key.Binding
 	Right      key.Binding
-	ExitSearch key.Binding
 	Enter      key.Binding
 	Delete     key.Binding
 }
@@ -48,7 +48,22 @@ type UpdateHighlighted struct {
 	Item string
 }
 
-func newKeyMap() *KeyMap {
+func newKeyMap(itemName string) *KeyMap {
+
+	itemName = strings.ToLower(itemName)
+
+	selectPhrase := "Select an item"
+
+	if itemName != "" {
+		selectPhrase = fmt.Sprintf("Select a %s", itemName)
+	}
+
+	deletePhrase := "Delete an item"
+
+	if itemName != "" {
+		deletePhrase = fmt.Sprintf("Delete a %s", itemName)
+	}
+
 	return &KeyMap{
 		Search: key.NewBinding(
 			key.WithKeys("ctrl+s", "cmd+f", "ctrl+f"),
@@ -76,17 +91,23 @@ func newKeyMap() *KeyMap {
 		),
 		Enter: key.NewBinding(
 			key.WithKeys("enter"),
-			key.WithHelp("enter", "Select an item"),
+			key.WithHelp("enter", selectPhrase),
 		),
 		Delete: key.NewBinding(
 			key.WithKeys("delete"),
-			key.WithHelp("delete", "Delete an item"),
+			key.WithHelp("delete", deletePhrase),
 		),
 	}
 }
 
+// Options specifies additional options to be considered when creating a searchtable.
+type Options struct {
+	// Used to modify help texts for keys.
+	SingularItemName string
+}
+
 type SearchTable struct {
-	Keys   *KeyMap
+	keys   *KeyMap
 	cursor int
 	items  []string
 
@@ -104,23 +125,24 @@ type SearchTable struct {
 	searchMode       bool
 }
 
-/*
-func (st SearchTable) Keys() string {
-	builder := strings.Builder{}
+// Returns a list of keybindings to be used in help text.
+func (st SearchTable) KeyList() []key.Binding {
+	keyList := []key.Binding{
+		st.keys.Search,
+		st.keys.ExitSearch,
+		st.keys.Up,
+		st.keys.Down,
+		st.keys.Left,
+		st.keys.Right,
+		st.keys.Enter,
+	}
 
-	builder.WriteString(fmt.Sprintf("Navigate: [%s,%s,%s,%s], Select: [%s], Delete: [%s], Search: [%s], Exit Search: [%s]",
-		st.keys.Up.Help().Key,
-		st.keys.Down.Help().Key,
-		st.keys.Left.Help().Key,
-		st.keys.Right.Help().Key,
-		st.keys.Enter.Help().Key,
-		st.keys.Delete.Help().Key,
-		st.keys.Search.Help().Key,
-		st.keys.ExitSearch.Help().Key,
-	))
+	if st.allowDelete {
+		keyList = append(keyList, st.keys.Delete)
+	}
 
-	return builder.String()
-}*/
+	return keyList
+}
 
 func calcSlice(length, currentPage, pageSize int) (int, int) {
 	if pageSize == 0 {
@@ -138,7 +160,7 @@ func calcSlice(length, currentPage, pageSize int) (int, int) {
 	return currentPage * pageSize, currentPage*pageSize + pageSize
 }
 
-func New(items []string, pageSize int, previousChoice string, allowDelete bool) SearchTable {
+func New(items []string, pageSize int, previousChoice string, allowDelete bool, options Options) SearchTable {
 	searchField := textinput.New()
 	searchField.Placeholder = ""
 	searchField.Focus()
@@ -151,7 +173,7 @@ func New(items []string, pageSize int, previousChoice string, allowDelete bool) 
 	sliceStart, sliceEnd := calcSlice(numItems, 0, pageSize)
 
 	return SearchTable{
-		Keys:              newKeyMap(),
+		keys:              newKeyMap(options.SingularItemName),
 		items:             items,
 		currentItemsSlice: items[sliceStart:sliceEnd],
 		allowDelete:       allowDelete,
@@ -224,11 +246,11 @@ func updateInselectMode(st SearchTable, msg tea.Msg) (SearchTable, tea.Cmd) {
 		// Cool, what was the actual key pressed?
 		switch {
 
-		case key.Matches(msg, st.Keys.Search):
+		case key.Matches(msg, st.keys.Search):
 			st.searchMode = true
 			return st, nil
 		// The "up" and "k" keys move the cursor up
-		case key.Matches(msg, st.Keys.Up):
+		case key.Matches(msg, st.keys.Up):
 			if st.cursor <= 0 {
 				st.searchMode = true
 				return st, nil
@@ -236,27 +258,27 @@ func updateInselectMode(st SearchTable, msg tea.Msg) (SearchTable, tea.Cmd) {
 			st.cursor--
 
 		// The "down" and "j" keys move the cursor down
-		case key.Matches(msg, st.Keys.Down):
+		case key.Matches(msg, st.keys.Down):
 			if st.cursor < len(st.currentItemsSlice)-1 {
 				st.cursor++
 			}
 
-		case key.Matches(msg, st.Keys.Left):
+		case key.Matches(msg, st.keys.Left):
 			if st.currentPage > 0 {
 				st.currentPage--
 			}
 
-		case key.Matches(msg, st.Keys.Right):
+		case key.Matches(msg, st.keys.Right):
 			if st.currentPage < st.numPages-1 {
 				st.currentPage++
 			}
 
-		case key.Matches(msg, st.Keys.Enter):
+		case key.Matches(msg, st.keys.Enter):
 			item := st.currentItemsSlice[st.cursor]
 			return st, func() tea.Msg {
 				return Selection{Value: item}
 			}
-		case key.Matches(msg, st.Keys.Delete) && st.allowDelete:
+		case key.Matches(msg, st.keys.Delete) && st.allowDelete:
 			item := st.currentItemsSlice[st.cursor]
 			return st, func() tea.Msg {
 				return Deletion{Value: item}
@@ -273,7 +295,7 @@ func updateInSearchMode(st SearchTable, msg tea.Msg) (SearchTable, tea.Cmd) {
 	case tea.KeyMsg:
 		switch {
 
-		case key.Matches(msg, st.Keys.ExitSearch):
+		case key.Matches(msg, st.keys.ExitSearch):
 			st.searchMode = false
 			return st, nil
 		}

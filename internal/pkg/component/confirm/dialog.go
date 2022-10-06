@@ -41,16 +41,27 @@ type ButtonPress struct {
 }
 
 type Dialog struct {
-	Keys    *KeyMap
+	keys    *KeyMap
 	cursor  int
 	buttons []string
 	text    string
 }
 
+// Returns a list of keybindings to be used in help text.
+func (d Dialog) KeyList() []key.Binding {
+	keyList := []key.Binding{
+		d.keys.Left,
+		d.keys.Right,
+		d.keys.Enter,
+	}
+
+	return keyList
+}
+
 func New(buttons []string, text string) Dialog {
 
 	return Dialog{
-		Keys:    newKeyMap(),
+		keys:    newKeyMap(),
 		buttons: buttons,
 		cursor:  0,
 		text:    text,
@@ -62,17 +73,17 @@ func (d Dialog) Update(msg tea.Msg) (Dialog, tea.Cmd) {
 	case tea.KeyMsg:
 		switch {
 
-		case key.Matches(msg, d.Keys.Left):
+		case key.Matches(msg, d.keys.Left):
 			if d.cursor > 0 {
 				d.cursor--
 			}
 
-		case key.Matches(msg, d.Keys.Right):
+		case key.Matches(msg, d.keys.Right):
 			if d.cursor < len(d.buttons)-1 {
 				d.cursor++
 			}
 
-		case key.Matches(msg, d.Keys.Enter):
+		case key.Matches(msg, d.keys.Enter):
 			button := d.buttons[d.cursor]
 			return d, func() tea.Msg {
 				return ButtonPress{
