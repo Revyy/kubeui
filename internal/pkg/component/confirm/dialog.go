@@ -35,22 +35,39 @@ func newKeyMap() *KeyMap {
 	}
 }
 
+// Button represents a button.
+type Button struct {
+	Id   string
+	Desc string
+}
+
 // ButtonPress represents the action of pressing a button.
 type ButtonPress struct {
-	Button string
+	Pressed Button
 }
 
 type Dialog struct {
-	Keys    *KeyMap
+	keys    *KeyMap
 	cursor  int
-	buttons []string
+	buttons []Button
 	text    string
 }
 
-func New(buttons []string, text string) Dialog {
+// Returns a list of keybindings to be used in help text.
+func (d Dialog) KeyList() []key.Binding {
+	keyList := []key.Binding{
+		d.keys.Left,
+		d.keys.Right,
+		d.keys.Enter,
+	}
+
+	return keyList
+}
+
+func New(buttons []Button, text string) Dialog {
 
 	return Dialog{
-		Keys:    newKeyMap(),
+		keys:    newKeyMap(),
 		buttons: buttons,
 		cursor:  0,
 		text:    text,
@@ -62,21 +79,21 @@ func (d Dialog) Update(msg tea.Msg) (Dialog, tea.Cmd) {
 	case tea.KeyMsg:
 		switch {
 
-		case key.Matches(msg, d.Keys.Left):
+		case key.Matches(msg, d.keys.Left):
 			if d.cursor > 0 {
 				d.cursor--
 			}
 
-		case key.Matches(msg, d.Keys.Right):
+		case key.Matches(msg, d.keys.Right):
 			if d.cursor < len(d.buttons)-1 {
 				d.cursor++
 			}
 
-		case key.Matches(msg, d.Keys.Enter):
+		case key.Matches(msg, d.keys.Enter):
 			button := d.buttons[d.cursor]
 			return d, func() tea.Msg {
 				return ButtonPress{
-					Button: button,
+					Pressed: button,
 				}
 			}
 
@@ -93,9 +110,9 @@ func (d Dialog) View() string {
 
 	for i, button := range d.buttons {
 		if i == d.cursor {
-			dialogBuilder.WriteString(selectedButtonStyle.Render(button))
+			dialogBuilder.WriteString(selectedButtonStyle.Render(button.Desc))
 		} else {
-			dialogBuilder.WriteString(button)
+			dialogBuilder.WriteString(button.Desc)
 		}
 
 		if i < len(d.buttons)-1 {

@@ -1,29 +1,18 @@
 package k8s
 
 import (
-	"flag"
 	"fmt"
-	"path/filepath"
 
 	"k8s.io/client-go/kubernetes"
+	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
-	"k8s.io/client-go/util/homedir"
 )
 
 // NewKClientSet creates a kubernetes ClientSet that can be used to issue kubernetes commands.
-func NewKClientSet() (*kubernetes.Clientset, error) {
+func NewKClientSet(kubeconfig string, access clientcmd.ConfigAccess) (*kubernetes.Clientset, error) {
 
-	var kubeconfig *string
-	if home := homedir.HomeDir(); home != "" {
-		kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
-	} else {
-		kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
-	}
-	flag.Parse()
-
-	// use the current context in kubeconfig
-	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
+	config, err := clientcmd.BuildConfigFromKubeconfigGetter("", access.GetStartingConfig)
 	if err != nil {
 		return nil, err
 	}

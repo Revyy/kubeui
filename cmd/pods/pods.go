@@ -2,7 +2,7 @@ package main
 
 import (
 	"flag"
-	"kubeui/internal/app/cxs"
+	"kubeui/internal/app/pods"
 	"kubeui/internal/pkg/k8s"
 	"kubeui/internal/pkg/kubeui"
 	"log"
@@ -24,7 +24,13 @@ func main() {
 
 	configAccess := clientConfig.ConfigAccess()
 
-	m := cxs.NewModel(rawConfig, configAccess)
+	clientSet, err := k8s.NewKClientSet(*kubeconfig, configAccess)
+
+	if err != nil {
+		log.Fatalf("failed to load config: %v", err)
+	}
+
+	m := pods.NewModel(rawConfig, configAccess, clientSet)
 
 	program := kubeui.NewProgram(m, true)
 	kubeui.StartProgram(program)

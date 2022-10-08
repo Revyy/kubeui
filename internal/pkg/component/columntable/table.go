@@ -1,4 +1,4 @@
-package searchtable
+package columntable
 
 import (
 	"fmt"
@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/life4/genesis/slices"
 )
 
 var (
@@ -28,24 +29,25 @@ type KeyMap struct {
 	Delete     key.Binding
 }
 
-// Selection represents the act of selecting an item.
+// Selection represents the act of selecting a row.
 type Selection struct {
-	Value string
+	Id string
 }
 
-// Deletion represents the act of deleting an item.
+// Deletion represents the act of deleting a row.
 type Deletion struct {
-	Value string
+	Id string
 }
 
-// UpdateItems resets the base items list for the table to the items passed in.
-type UpdateItems struct {
-	Items []string
+// UpdateRowsAndColumns updates the columns and rows of the table.
+type UpdateRowsAndColumns struct {
+	Columns []*Column
+	Rows    []*Row
 }
 
 // UpdateHighlighted sets a new previous choice values.
 type UpdateHighlighted struct {
-	Item string
+	RowId string
 }
 
 func newKeyMap(itemName string) *KeyMap {
@@ -106,6 +108,12 @@ type Column struct {
 	Width int
 }
 
+// Row defined a row of the table.
+type Row struct {
+	Id     string
+	Values []string
+}
+
 // Options specifies additional options to be considered when creating a searchtable.
 type Options struct {
 	// Used to modify help texts for keys.
@@ -113,32 +121,31 @@ type Options struct {
 
 	// If true, then the search field will be active to start with.
 	StartInSearchMode bool
-
-	// Named Columns
-	Columns []*Column
 }
 
-type SearchTable struct {
+type ColumnTable struct {
 	keys   *KeyMap
 	cursor int
-	items  []string
 
 	highlighted string
 
-	allowDelete       bool
-	currentItemsSlice []string
-	currentPage       int
-	pageSize          int
-	numPages          int
-	numItems          int
+	allowDelete      bool
+	currentRowsSlice []*Row
+	currentPage      int
+	pageSize         int
+	numPages         int
+	numRows          int
 
-	numFilteredItems int
-	searchField      textinput.Model
-	searchMode       bool
+	columns []*Column
+	rows    []*Row
+
+	numFilteredRows int
+	searchField     textinput.Model
+	searchMode      bool
 }
 
 // Returns a list of keybindings to be used in help text.
-func (st SearchTable) KeyList() []key.Binding {
+func (st ColumnTable) KeyList() []key.Binding {
 	keyList := []key.Binding{
 		st.keys.Search,
 		st.keys.ExitSearch,
@@ -172,86 +179,89 @@ func calcSlice(length, currentPage, pageSize int) (int, int) {
 	return currentPage * pageSize, currentPage*pageSize + pageSize
 }
 
-func New(items []string, pageSize int, previousChoice string, allowDelete bool, options Options) SearchTable {
+func New(columns []*Column, rows []*Row, pageSize int, previousChoice string, allowDelete bool, options Options) ColumnTable {
 	searchField := textinput.New()
 	searchField.Placeholder = ""
 	searchField.Focus()
 	searchField.CharLimit = 156
 	searchField.Width = 20
 
-	numPages := int(math.Ceil(float64(len(items)) / float64(pageSize)))
-	numItems := len(items)
+	numPages := int(math.Ceil(float64(len(rows)) / float64(pageSize)))
+	numRows := len(rows)
 
-	sliceStart, sliceEnd := calcSlice(numItems, 0, pageSize)
+	sliceStart, sliceEnd := calcSlice(numRows, 0, pageSize)
 
-	return SearchTable{
-		keys:              newKeyMap(options.SingularItemName),
-		items:             items,
-		currentItemsSlice: items[sliceStart:sliceEnd],
-		allowDelete:       allowDelete,
-		highlighted:       previousChoice,
-		pageSize:          pageSize,
-		numPages:          numPages,
-		searchField:       searchField,
-		numItems:          numItems,
-		numFilteredItems:  numItems,
-		searchMode:        options.StartInSearchMode,
+	return ColumnTable{
+		keys: newKeyMap(options.SingularItemName),
+
+		currentRowsSlice: rows[sliceStart:sliceEnd],
+		allowDelete:      allowDelete,
+		highlighted:      previousChoice,
+		pageSize:         pageSize,
+		numPages:         numPages,
+		searchField:      searchField,
+		numRows:          numRows,
+		numFilteredRows:  numRows,
+		searchMode:       options.StartInSearchMode,
+		columns:          columns,
+		rows:             rows,
 	}
 }
 
-func (st SearchTable) Update(msg tea.Msg) (SearchTable, tea.Cmd) {
+func (ct ColumnTable) Update(msg tea.Msg) (ColumnTable, tea.Cmd) {
 
 	var cmd tea.Cmd
 
-	if st.searchMode {
-		st, cmd = updateInSearchMode(st, msg)
+	if ct.searchMode {
+		ct, cmd = updateInSearchMode(ct, msg)
 	} else {
-		st, cmd = updateInselectMode(st, msg)
+		ct, cmd = updateInselectMode(ct, msg)
 		if cmd != nil {
-			return st, cmd
+			return ct, cmd
 		}
 	}
 
 	switch m := msg.(type) {
-	case UpdateItems:
-		st.items = m.Items
+	case UpdateRowsAndColumns:
+		ct.rows = m.Rows
+		ct.columns = m.Columns
 	case UpdateHighlighted:
-		st.highlighted = m.Item
+		ct.highlighted = m.RowId
 	}
 
-	// Filter items based on the search value.
-	filteredItems := []string{}
+	// Filter rows based on the search value.
+	filteredRows := []*Row{}
 
-	for _, item := range st.items {
-		if strings.Contains(item, st.searchField.Value()) {
-			filteredItems = append(filteredItems, item)
+	for _, row := range ct.rows {
+		if strings.Contains(row.Id, ct.searchField.Value()) {
+			filteredRows = append(filteredRows, row)
 		}
 	}
 
 	// If we have a search result that is different than the last result we reset the page.
-	if numFilteredItems := len(filteredItems); numFilteredItems != st.numFilteredItems {
-		st.numFilteredItems = numFilteredItems
-		st.currentPage = 0
-		st.numPages = int(math.Ceil(float64(st.numFilteredItems) / float64(st.pageSize)))
+	if numFilteredItems := len(filteredRows); numFilteredItems != ct.numFilteredRows {
+		ct.numFilteredRows = numFilteredItems
+		ct.currentPage = 0
+		ct.numPages = int(math.Ceil(float64(ct.numFilteredRows) / float64(ct.pageSize)))
 	}
 
 	// Calculate which items should be displayed based on the current page and the pageSize.
-	sliceStart, sliceEnd := calcSlice(st.numFilteredItems, st.currentPage, st.pageSize)
-	st.currentItemsSlice = filteredItems[sliceStart:sliceEnd]
+	sliceStart, sliceEnd := calcSlice(ct.numFilteredRows, ct.currentPage, ct.pageSize)
+	ct.currentRowsSlice = filteredRows[sliceStart:sliceEnd]
 
 	// If the selection on the previous page was at a higher index than the current pages total items
 	// then we reset it to avoid having a missing cursor.
-	if st.cursor > len(st.currentItemsSlice)-1 {
-		st.cursor = 0
+	if ct.cursor > len(ct.currentRowsSlice)-1 {
+		ct.cursor = 0
 	}
 
 	// Return the updated model to the Bubble Tea runtime for processing.
 	// Note that we're not returning a command.
-	return st, cmd
+	return ct, cmd
 
 }
 
-func updateInselectMode(st SearchTable, msg tea.Msg) (SearchTable, tea.Cmd) {
+func updateInselectMode(ct ColumnTable, msg tea.Msg) (ColumnTable, tea.Cmd) {
 	switch msg := msg.(type) {
 
 	// Is it a key press?
@@ -259,91 +269,101 @@ func updateInselectMode(st SearchTable, msg tea.Msg) (SearchTable, tea.Cmd) {
 		// Cool, what was the actual key pressed?
 		switch {
 
-		case key.Matches(msg, st.keys.Search):
-			st.searchMode = true
-			return st, nil
+		case key.Matches(msg, ct.keys.Search):
+			ct.searchMode = true
+			return ct, nil
 		// The "up" and "k" keys move the cursor up
-		case key.Matches(msg, st.keys.Up):
-			if st.cursor <= 0 {
-				st.searchMode = true
-				return st, nil
+		case key.Matches(msg, ct.keys.Up):
+			if ct.cursor <= 0 {
+				ct.searchMode = true
+				return ct, nil
 			}
-			st.cursor--
+			ct.cursor--
 
 		// The "down" and "j" keys move the cursor down
-		case key.Matches(msg, st.keys.Down):
-			if st.cursor < len(st.currentItemsSlice)-1 {
-				st.cursor++
+		case key.Matches(msg, ct.keys.Down):
+			if ct.cursor < len(ct.currentRowsSlice)-1 {
+				ct.cursor++
 			}
 
-		case key.Matches(msg, st.keys.Left):
-			if st.currentPage > 0 {
-				st.currentPage--
+		case key.Matches(msg, ct.keys.Left):
+			if ct.currentPage > 0 {
+				ct.currentPage--
 			}
 
-		case key.Matches(msg, st.keys.Right):
-			if st.currentPage < st.numPages-1 {
-				st.currentPage++
+		case key.Matches(msg, ct.keys.Right):
+			if ct.currentPage < ct.numPages-1 {
+				ct.currentPage++
 			}
 
-		case key.Matches(msg, st.keys.Enter):
-			item := st.currentItemsSlice[st.cursor]
-			return st, func() tea.Msg {
-				return Selection{Value: item}
+		case key.Matches(msg, ct.keys.Enter):
+			row := ct.currentRowsSlice[ct.cursor]
+			return ct, func() tea.Msg {
+				return Selection{Id: row.Id}
 			}
-		case key.Matches(msg, st.keys.Delete) && st.allowDelete:
-			item := st.currentItemsSlice[st.cursor]
-			return st, func() tea.Msg {
-				return Deletion{Value: item}
+		case key.Matches(msg, ct.keys.Delete) && ct.allowDelete:
+			row := ct.currentRowsSlice[ct.cursor]
+			return ct, func() tea.Msg {
+				return Deletion{Id: row.Id}
 			}
 		}
 	}
 
-	return st, nil
+	return ct, nil
 }
 
-func updateInSearchMode(st SearchTable, msg tea.Msg) (SearchTable, tea.Cmd) {
+func updateInSearchMode(ct ColumnTable, msg tea.Msg) (ColumnTable, tea.Cmd) {
 	switch msg := msg.(type) {
 
 	case tea.KeyMsg:
 		switch {
 
-		case key.Matches(msg, st.keys.ExitSearch):
-			st.searchMode = false
-			return st, nil
+		case key.Matches(msg, ct.keys.ExitSearch):
+			ct.searchMode = false
+			return ct, nil
 		}
 	}
-	st.searchField, _ = st.searchField.Update(msg)
-	return st, nil
+	ct.searchField, _ = ct.searchField.Update(msg)
+	return ct, nil
 }
 
-func (n SearchTable) View() string {
+func (ct ColumnTable) View() string {
 
 	var mainBuilder strings.Builder
 
 	searchStyle := selectedPageStyle
-	if !n.searchMode {
+	if !ct.searchMode {
 		searchStyle = unSelectedPageStyle
 	}
 
-	mainBuilder.WriteString(searchStyle.Render(n.searchField.View()) + "\n\n\n")
+	mainBuilder.WriteString(searchStyle.Render(ct.searchField.View()) + "\n\n\n")
 
 	var selectBuilder strings.Builder
 
-	// Iterate over the items in the current page and print them out.
-	for i, item := range n.currentItemsSlice {
+	columnsData := slices.Map(ct.columns, func(c *Column) string {
+		return lipgloss.NewStyle().Width(c.Width + 2).Render(fmt.Sprintf("  %s", c.Desc))
+	})
+	mainBuilder.WriteString(lipgloss.JoinHorizontal(lipgloss.Left, columnsData...) + "\n\n")
 
+	// Iterate over the rows in the current page and print them out.
+	for i, row := range ct.currentRowsSlice {
 		// Is the cursor pointing at this choice?
 		cursor := " " // no cursor
-		if n.cursor == i {
+		if ct.cursor == i {
 			cursor = ">" // cursor!
 		}
+
+		rowData := []string{}
+
+		for i, value := range row.Values {
+			rowData = append(rowData, lipgloss.NewStyle().Width(ct.columns[i].Width+2).Render(value))
+		}
+
 		// Render the row
-		if item == n.highlighted {
-			//selectBuilder.WriteString(fmt.Sprintf("%s %s\n", cursor, item))
-			selectBuilder.WriteString(fmt.Sprintf("%s %s\n", cursor, highlightedStyle.Render(item)))
+		if row.Id == ct.highlighted {
+			selectBuilder.WriteString(fmt.Sprintf("%s %s\n", cursor, highlightedStyle.Render(lipgloss.JoinHorizontal(lipgloss.Left, rowData...))))
 		} else {
-			selectBuilder.WriteString(fmt.Sprintf("%s %s\n", cursor, item))
+			selectBuilder.WriteString(fmt.Sprintf("%s %s\n", cursor, lipgloss.JoinHorizontal(lipgloss.Left, rowData...)))
 		}
 
 	}
@@ -351,7 +371,7 @@ func (n SearchTable) View() string {
 	// Start building the pageinator view.
 	paginatorView := "\n\n"
 	// If we are not at the first page then display a left arrow indicating that we can go left.
-	if n.currentPage > 0 {
+	if ct.currentPage > 0 {
 		paginatorView += "< "
 	} else { // Else just print space to fill the void of the arrow.
 		paginatorView += "  "
@@ -359,32 +379,36 @@ func (n SearchTable) View() string {
 
 	// Print out the pages in order as [1 2 3 4] etc.
 	paginatorView += "[ "
-	for i := 0; i < n.numPages; i++ {
-		if i == n.currentPage {
+	for i := 0; i < ct.numPages; i++ {
+		if i == ct.currentPage {
 			paginatorView += selectedPageStyle.Render(fmt.Sprintf("%d", i+1))
 		} else {
 			paginatorView += unSelectedPageStyle.Render(fmt.Sprintf("%d", i+1))
 		}
 		// Add space between numbers inside the brackets.
-		if i < n.numPages-1 {
+		if i < ct.numPages-1 {
 			paginatorView += "  "
 		}
 	}
 	paginatorView += " ]"
 
 	// If we are not at the last page then display a right arrow indicating that we can go right.
-	if n.currentPage < n.numPages-1 {
+	if ct.currentPage < ct.numPages-1 {
 		paginatorView += " >"
 	}
 
 	selectBuilder.WriteString(paginatorView)
 
 	selectStyle := selectedPageStyle
-	if n.searchMode {
+	if ct.searchMode {
 		selectStyle = unSelectedPageStyle
 	}
 
 	mainBuilder.WriteString(selectStyle.Render(selectBuilder.String()))
 
 	return mainBuilder.String()
+}
+
+func (n ColumnTable) Init() tea.Cmd {
+	return func() tea.Msg { return "" }
 }
