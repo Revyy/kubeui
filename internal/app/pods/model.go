@@ -52,12 +52,20 @@ func newAppKeyMap() *appKeyMap {
 	}
 }
 
+// AppState defines the different states the application can be in.
 type AppState uint16
 
 const (
+	// INITIALIZING represents the initial state of the application where initial loading of data occurs.
+	// However it is also used to reinitialize the application when a new namespace is selected.
 	INITIALIZING AppState = iota
-	MAIN
-	NAMESPACE_SELECT
+	// When the application is in the POD_SELECTION state it shows a table with information about all pods in the current namespace.
+	POD_SELECTION
+	// When the application is in the NAMESPACE_SELECTION state it allows the user to select a namespace.
+	NAMESPACE_SELECTION
+	// When the application is in the NAMESPACE_SELECTION state it allows the user to confirm or deny a pod deletion request.
+	CONFIRM_POD_DELETION
+	// When the application is in the ERROR state it allows the user to view an error message before quitting the application.
 	ERROR
 )
 
@@ -130,7 +138,7 @@ func (m Model) ShortHelp() []key.Binding {
 
 	bindings := []key.Binding{m.keys.help, m.keys.quit}
 
-	if m.state == MAIN && m.activeDialog == nil {
+	if m.state == POD_SELECTION {
 		bindings = append(bindings, m.keys.refreshPodList, m.keys.selectNamespace)
 	}
 
@@ -150,17 +158,17 @@ func (m Model) FullHelp() [][]key.Binding {
 	}
 
 	switch m.state {
-	case NAMESPACE_SELECT:
+	case NAMESPACE_SELECTION:
 		bindings = append(bindings, m.namespaceTable.KeyList())
-	case MAIN:
-		if m.activeDialog == nil {
-			bindings[0] = append(bindings[0], m.keys.selectNamespace, m.keys.refreshPodList)
-		}
+	case POD_SELECTION:
 
-		if len(m.pods) > 0 && m.activeDialog == nil {
+		bindings[0] = append(bindings[0], m.keys.selectNamespace, m.keys.refreshPodList)
+
+		if len(m.pods) > 0 {
 			bindings = append(bindings, m.podTable.KeyList())
 		}
 
+	case CONFIRM_POD_DELETION:
 		if m.activeDialog != nil {
 			bindings = append(bindings, m.activeDialog.KeyList())
 		}
@@ -182,24 +190,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	// Global Keypresses and app messages.
 	switch msg := msg.(type) {
-
 	case tea.WindowSizeMsg:
-		// If we set a width on the help menu it can it can gracefully truncate
-		// its view as needed.
 		m.help.Width = msg.Width
 		m.windowSize = msg
 		return m, nil
-
+	case error:
+		m.state = ERROR
+		m.errorMessage = msg.Error()
+		return m, nil
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, m.keys.quit):
 			return m, tea.Quit
 		case key.Matches(msg, m.keys.help):
 			m.help.ShowAll = !m.help.ShowAll
-
-		case key.Matches(msg, m.keys.selectNamespace) && !m.InDialog():
-
+		// We can only transition to NAMESPACE_SELECT from MAIN.
+		case key.Matches(msg, m.keys.selectNamespace) && m.state == POD_SELECTION:
 			m.namespaceTable = searchtable.New(
 				m.namespaces,
 				10,
@@ -210,22 +218,33 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					StartInSearchMode: true,
 				},
 			)
-			if m.state == NAMESPACE_SELECT {
-				m.state = MAIN
-			} else {
-				m.state = NAMESPACE_SELECT
-			}
-
+			m.state = NAMESPACE_SELECTION
 			return m, nil
 		}
+	}
 
-	case error:
-		m.state = ERROR
-		m.errorMessage = msg.Error()
-		return m, nil
+	// State specific updates.
+	var cmd tea.Cmd
 
+	switch m.state {
+	case INITIALIZING:
+		m, cmd = m.initializingUpdate(msg)
+	case NAMESPACE_SELECTION:
+		m, cmd = m.namespaceSelectionUpdate(msg)
+	case POD_SELECTION:
+		m, cmd = m.podSelectionUpdate(msg)
+	case CONFIRM_POD_DELETION:
+		m, cmd = m.confirmPodDeletionUpdate(msg)
+	}
+
+	return m, cmd
+}
+
+func (m Model) initializingUpdate(msg tea.Msg) (Model, tea.Cmd) {
+
+	switch msgT := msg.(type) {
 	case message.Initialization:
-		m.namespaces = slices.Map(msg.NamespaceList.Items, func(n v1.Namespace) string {
+		m.namespaces = slices.Map(msgT.NamespaceList.Items, func(n v1.Namespace) string {
 			return n.GetName()
 		})
 
@@ -236,53 +255,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		return m, m.listPods
-
 	case message.ListPods:
-		m.pods = msg.PodList.Items
+		m.pods = msgT.PodList.Items
 		podColumns, podRows := podTableContents(m.pods)
-
-		// If we are already in main.
-		if m.state == MAIN {
-			var cmd tea.Cmd
-			m.podTable, cmd = m.podTable.Update(columntable.UpdateRowsAndColumns{Rows: podRows, Columns: podColumns})
-			return m, cmd
-		}
-
 		m.podTable = columntable.New(podColumns, podRows, 10, "", true, columntable.Options{SingularItemName: "pod", StartInSearchMode: true})
-
-		if m.state != MAIN {
-			m.state = MAIN
-		}
+		m.state = POD_SELECTION
 
 		return m, nil
-	case message.PodDeleted:
-		return m, m.listPods
+
 	}
 
-	var cmd tea.Cmd
-
-	switch m.state {
-	case NAMESPACE_SELECT:
-		m, cmd = m.namespaceSelectUpdate(msg)
-	case MAIN:
-		m, cmd = m.podSelectUpdate(msg)
-	}
-
-	var dialog confirm.Dialog
-	if m.activeDialog != nil {
-		dialog, cmd = m.activeDialog.Update(msg)
-		m.activeDialog = &dialog
-	}
-
-	return m, cmd
-
+	return m, nil
 }
 
-func (m Model) namespaceSelectUpdate(msg tea.Msg) (Model, tea.Cmd) {
-
-	if m.InDialog() {
-		return m, nil
-	}
+func (m Model) namespaceSelectionUpdate(msg tea.Msg) (Model, tea.Cmd) {
 
 	switch msgT := msg.(type) {
 	case searchtable.Selection:
@@ -302,26 +288,29 @@ func (m Model) namespaceSelectUpdate(msg tea.Msg) (Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m Model) podSelectUpdate(msg tea.Msg) (Model, tea.Cmd) {
-
-	if m.InDialog() {
-		switch msgT := msg.(type) {
-		case confirm.ButtonPress:
-			m.activeDialog = nil
-			if msgT.Pressed.Desc == "Yes" {
-				return m, m.deletePod(msgT.Pressed.Id)
-			}
-		}
-		return m, nil
-	}
+func (m Model) podSelectionUpdate(msg tea.Msg) (Model, tea.Cmd) {
 
 	switch msgT := msg.(type) {
+	case message.ListPods:
+		m.pods = msgT.PodList.Items
+		podColumns, podRows := podTableContents(m.pods)
+
+		var cmd tea.Cmd
+		m.podTable, cmd = m.podTable.Update(columntable.UpdateRowsAndColumns{Rows: podRows, Columns: podColumns})
+		return m, cmd
+
 	case columntable.Selection:
-		return m, newError(fmt.Errorf("you selected pod: %s", msgT.Id))
+		m.state = ERROR
+		m.errorMessage = fmt.Sprintf("you selected pod: %s", msgT.Id)
+		return m, nil
 	case columntable.Deletion:
 		dialog := confirm.New([]confirm.Button{{Desc: "Yes", Id: msgT.Id}, {Desc: "No", Id: msgT.Id}}, fmt.Sprintf("Are you sure you want to delete %s", msgT.Id))
 		m.activeDialog = &dialog
+		m.state = CONFIRM_POD_DELETION
 		return m, nil
+
+	case message.PodDeleted:
+		return m, m.listPods
 
 	case tea.KeyMsg:
 		if key.Matches(msgT, m.keys.refreshPodList) {
@@ -334,6 +323,25 @@ func (m Model) podSelectUpdate(msg tea.Msg) (Model, tea.Cmd) {
 	return m, cmd
 }
 
+func (m Model) confirmPodDeletionUpdate(msg tea.Msg) (Model, tea.Cmd) {
+
+	switch msgT := msg.(type) {
+	case confirm.ButtonPress:
+		m.state = POD_SELECTION
+		m.activeDialog = nil
+		if msgT.Pressed.Desc == "Yes" {
+			return m, m.deletePod(msgT.Pressed.Id)
+		}
+
+		return m, nil
+	}
+
+	dialog, cmd := m.activeDialog.Update(msg)
+	m.activeDialog = &dialog
+
+	return m, cmd
+}
+
 func (m Model) View() string {
 
 	builder := strings.Builder{}
@@ -342,7 +350,7 @@ func (m Model) View() string {
 	builder.WriteString(helpView)
 	builder.WriteString("\n\n")
 
-	if m.activeDialog != nil {
+	if m.state == CONFIRM_POD_DELETION && m.activeDialog != nil {
 		builder.WriteString(m.activeDialog.View())
 		return builder.String()
 	}
@@ -354,22 +362,22 @@ func (m Model) View() string {
 
 	if m.state == ERROR {
 		builder.WriteString("An error occured\n\n")
-		builder.WriteString(errorMessageStyle.Render(kubeui.LineBreak(m.errorMessage, m.windowSize.Width)))
+		builder.WriteString(kubeui.ErrorMessageStyle.Render(kubeui.LineBreak(m.errorMessage, m.windowSize.Width)))
 		return builder.String()
 	}
 
-	statusBar := statusBarStyle.Width(m.windowSize.Width - 1).Render(fmt.Sprintf("Context: %s  Namespace: %s", m.config.CurrentContext, m.currentNamespace))
+	statusBar := kubeui.StatusBarStyle.Width(m.windowSize.Width - 1).Render(fmt.Sprintf("Context: %s  Namespace: %s", m.config.CurrentContext, m.currentNamespace))
 	builder.WriteString(statusBar + "\n")
 
 	switch m.state {
-	case MAIN:
+	case POD_SELECTION:
 		if len(m.pods) == 0 {
 			builder.WriteString(fmt.Sprintf("No pods found in namespace %s", m.currentNamespace))
 			break
 		}
 		builder.WriteString(m.podTable.View())
 
-	case NAMESPACE_SELECT:
+	case NAMESPACE_SELECTION:
 		builder.WriteString(m.namespaceTable.View())
 
 	}
