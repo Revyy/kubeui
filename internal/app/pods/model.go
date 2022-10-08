@@ -5,7 +5,9 @@ import (
 	"strings"
 
 	"kubeui/internal/app/pods/message"
+	"kubeui/internal/pkg/component/columntable"
 	"kubeui/internal/pkg/component/searchtable"
+	"kubeui/internal/pkg/k8s"
 	"kubeui/internal/pkg/kubeui"
 	"kubeui/internal/pkg/kubeui/help"
 
@@ -74,11 +76,11 @@ type Model struct {
 	// Help.
 	help help.Model
 
-	// searchtable used to select a namespace.
+	// SearchTable used to select a namespace.
 	namespaceTable searchtable.SearchTable
 
-	// searchtable used to select a pod.
-	podTable searchtable.SearchTable
+	// ColumnTable used to select a pod.
+	podTable columntable.ColumnTable
 
 	// Indicates which state the application is in.
 	state AppState
@@ -90,7 +92,7 @@ type Model struct {
 	namespaces []string
 
 	// Pods in current namespace.
-	pods []string
+	pods []v1.Pod
 
 	// Currently selected namespace.
 	currentNamespace string
@@ -167,13 +169,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keys.quit):
 			return m, tea.Quit
 		case key.Matches(msg, m.keys.help):
-			//m.help.ShowAll = !m.help.ShowAll
-			return m, func() tea.Msg {
-				return fmt.Errorf("some error bla bla")
-			}
+			m.help.ShowAll = !m.help.ShowAll
 
 		case key.Matches(msg, m.keys.selectNamespace):
-			m.namespaceTable = searchtable.New(m.namespaces, 10, m.currentNamespace, false, searchtable.Options{SingularItemName: "namespace"})
+
+			m.namespaceTable = searchtable.New(
+				m.namespaces,
+				10,
+				m.currentNamespace,
+				false,
+				searchtable.Options{
+					SingularItemName:  "namespace",
+					StartInSearchMode: true,
+				},
+			)
 			if m.state == NAMESPACE_SELECT {
 				m.state = MAIN
 			} else {
@@ -202,11 +211,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.listPods
 
 	case message.ListPods:
-		m.pods = slices.Map(msg.PodList.Items, func(n v1.Pod) string {
-			return n.GetName()
-		})
+		m.pods = msg.PodList.Items
 
-		m.podTable = searchtable.New(m.pods, 10, "", false, searchtable.Options{SingularItemName: "pod"})
+		podColumns, podRows := podTableContents(m.pods)
+
+		m.podTable = columntable.New(podColumns, podRows, 10, "", false, columntable.Options{SingularItemName: "pod", StartInSearchMode: true})
 
 		if m.state != MAIN {
 			m.state = MAIN
@@ -229,6 +238,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m Model) namespaceSelectUpdate(msg tea.Msg) (Model, tea.Cmd) {
 	switch msgT := msg.(type) {
 	case searchtable.Selection:
+
+		err := k8s.SwitchContext(m.config.CurrentContext, msgT.Value, m.configAccess, m.config)
+		if err != nil {
+			return m, func() tea.Msg { return err }
+		}
+
 		m.currentNamespace = msgT.Value
 		m.state = INITIALIZING
 		return m, m.listPods
@@ -240,12 +255,10 @@ func (m Model) namespaceSelectUpdate(msg tea.Msg) (Model, tea.Cmd) {
 }
 
 func (m Model) podSelectUpdate(msg tea.Msg) (Model, tea.Cmd) {
-	/*switch msgT := msg.(type) {
-	case searchtable.Selection:
-		m.currentNamespace = msgT.Value
-		m.state = MAIN
-		return m, nil
-	}*/
+	switch msgT := msg.(type) {
+	case columntable.Selection:
+		return m, newError(fmt.Errorf("you selected pod: %s", msgT.Id))
+	}
 
 	var cmd tea.Cmd
 	m.podTable, cmd = m.podTable.Update(msg)
@@ -271,7 +284,7 @@ func (m Model) View() string {
 		return builder.String()
 	}
 
-	statusBar := statusBarStyle.Width(m.windowSize.Width - 1).Render(fmt.Sprintf("Namespace: %s", m.currentNamespace))
+	statusBar := statusBarStyle.Width(m.windowSize.Width - 1).Render(fmt.Sprintf("Context: %s  Namespace: %s", m.config.CurrentContext, m.currentNamespace))
 	builder.WriteString(statusBar + "\n")
 
 	switch m.state {
