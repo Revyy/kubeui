@@ -26,7 +26,7 @@ func main() {
 
 	m := cxs.NewModel(rawConfig, configAccess)
 
-	program := kubeui.NewProgram(m, false)
+	program := kubeui.NewProgram(m, true)
 	kubeui.StartProgram(program)
 
 }

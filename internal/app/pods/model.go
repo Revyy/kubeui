@@ -26,6 +26,7 @@ type appKeyMap struct {
 	quit            key.Binding
 	help            key.Binding
 	selectNamespace key.Binding
+	refreshPodList  key.Binding
 }
 
 // newAppKeyMap defines the actual key bindings and creates an appKeyMap.
@@ -42,6 +43,10 @@ func newAppKeyMap() *appKeyMap {
 		selectNamespace: key.NewBinding(
 			key.WithKeys("ctrl+n"),
 			key.WithHelp("ctrl+n", "Select namespace"),
+		),
+		refreshPodList: key.NewBinding(
+			key.WithKeys("ctrl+r", "cmd+r"),
+			key.WithHelp("ctrl+r,cmd+r", "Refresh pod list"),
 		),
 	}
 }
@@ -119,7 +124,13 @@ func (m Model) ShortHelp() []key.Binding {
 		return []key.Binding{m.keys.quit}
 	}
 
-	return []key.Binding{m.keys.help, m.keys.quit, m.keys.selectNamespace}
+	bindings := []key.Binding{m.keys.help, m.keys.quit, m.keys.selectNamespace}
+
+	if m.state == MAIN {
+		bindings = append(bindings, m.keys.refreshPodList)
+	}
+
+	return bindings
 }
 
 // FullHelp returns keybindings for the expanded help view. It's part of the
@@ -138,6 +149,7 @@ func (m Model) FullHelp() [][]key.Binding {
 	case NAMESPACE_SELECT:
 		bindings = append(bindings, m.namespaceTable.KeyList())
 	case MAIN:
+		bindings[0] = append(bindings[0], m.keys.refreshPodList)
 		if len(m.pods) > 0 {
 			bindings = append(bindings, m.podTable.KeyList())
 		}
@@ -170,6 +182,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case key.Matches(msg, m.keys.help):
 			m.help.ShowAll = !m.help.ShowAll
+
+		case key.Matches(msg, m.keys.refreshPodList):
+			return m, m.listPods
 
 		case key.Matches(msg, m.keys.selectNamespace):
 
@@ -212,8 +227,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case message.ListPods:
 		m.pods = msg.PodList.Items
-
 		podColumns, podRows := podTableContents(m.pods)
+
+		// If we are already in main.
+		if m.state == MAIN {
+			var cmd tea.Cmd
+			m.podTable, cmd = m.podTable.Update(columntable.UpdateRowsAndColumns{Rows: podRows, Columns: podColumns})
+			return m, cmd
+		}
 
 		m.podTable = columntable.New(podColumns, podRows, 10, "", false, columntable.Options{SingularItemName: "pod", StartInSearchMode: true})
 

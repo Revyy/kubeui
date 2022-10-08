@@ -39,9 +39,10 @@ type Deletion struct {
 	Id string
 }
 
-// UpdateRows resets the base rows list for the table to the rows passed in.
-type UpdateRows struct {
-	Rows []*Row
+// UpdateRowsAndColumns updates the columns and rows of the table.
+type UpdateRowsAndColumns struct {
+	Columns []*Column
+	Rows    []*Row
 }
 
 // UpdateHighlighted sets a new previous choice values.
@@ -221,8 +222,9 @@ func (ct ColumnTable) Update(msg tea.Msg) (ColumnTable, tea.Cmd) {
 	}
 
 	switch m := msg.(type) {
-	case UpdateRows:
+	case UpdateRowsAndColumns:
 		ct.rows = m.Rows
+		ct.columns = m.Columns
 	case UpdateHighlighted:
 		ct.highlighted = m.RowId
 	}
