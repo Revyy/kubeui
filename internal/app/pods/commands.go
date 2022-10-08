@@ -43,3 +43,20 @@ func (m Model) listPods() tea.Msg {
 
 	return message.NewListPods(pods)
 }
+
+func (m Model) deletePod(name string) tea.Cmd {
+
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+
+		err := m.kubectl.CoreV1().Pods(m.currentNamespace).Delete(ctx, name, v1.DeleteOptions{})
+
+		if err != nil {
+			return fmt.Errorf("failed to delete pod: %v", err)
+		}
+
+		return message.NewPodDeleted(name)
+	}
+
+}

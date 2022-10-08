@@ -35,15 +35,21 @@ func newKeyMap() *KeyMap {
 	}
 }
 
+// Button represents a button.
+type Button struct {
+	Id   string
+	Desc string
+}
+
 // ButtonPress represents the action of pressing a button.
 type ButtonPress struct {
-	Button string
+	Pressed Button
 }
 
 type Dialog struct {
 	keys    *KeyMap
 	cursor  int
-	buttons []string
+	buttons []Button
 	text    string
 }
 
@@ -58,7 +64,7 @@ func (d Dialog) KeyList() []key.Binding {
 	return keyList
 }
 
-func New(buttons []string, text string) Dialog {
+func New(buttons []Button, text string) Dialog {
 
 	return Dialog{
 		keys:    newKeyMap(),
@@ -87,7 +93,7 @@ func (d Dialog) Update(msg tea.Msg) (Dialog, tea.Cmd) {
 			button := d.buttons[d.cursor]
 			return d, func() tea.Msg {
 				return ButtonPress{
-					Button: button,
+					Pressed: button,
 				}
 			}
 
@@ -104,9 +110,9 @@ func (d Dialog) View() string {
 
 	for i, button := range d.buttons {
 		if i == d.cursor {
-			dialogBuilder.WriteString(selectedButtonStyle.Render(button))
+			dialogBuilder.WriteString(selectedButtonStyle.Render(button.Desc))
 		} else {
-			dialogBuilder.WriteString(button)
+			dialogBuilder.WriteString(button.Desc)
 		}
 
 		if i < len(d.buttons)-1 {

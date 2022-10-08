@@ -78,11 +78,6 @@ type Model struct {
 	// A new dialog is created when needed.
 	activeDialog *confirm.Dialog
 
-	// Used to store the id of the context to delete.
-	// Needed as we use a confirm dialog to get approval before deleting which
-	// means that we need to do it across multiple calls to the Update function.
-	contextToDelete string
-
 	// Windows size
 	windowSize tea.WindowSizeMsg
 	// Help
@@ -136,32 +131,30 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.table, cmd = m.table.Update(searchtable.UpdateHighlighted{Item: msg.Value})
 		return m, cmd
 	case searchtable.Deletion:
-		m.contextToDelete = msg.Value
-		dialog := confirm.New([]string{"Yes", "No"}, fmt.Sprintf("Are you sure you want to delete %s", msg.Value))
+		dialog := confirm.New([]confirm.Button{{Desc: "Yes", Id: msg.Value}, {Desc: "No", Id: msg.Value}}, fmt.Sprintf("Are you sure you want to delete %s", msg.Value))
 		m.activeDialog = &dialog
 		return m, nil
 	case confirm.ButtonPress:
 
 		// If the user pressed No then we close the dialog and reset contextToDelete.
-		if msg.Button != "Yes" {
-			m.contextToDelete = ""
+		if msg.Pressed.Desc != "Yes" {
 			m.activeDialog = nil
 			return m, nil
 		}
 
-		err := k8s.DeleteContext(m.contextToDelete, m.configAccess, m.config)
+		err := k8s.DeleteContext(msg.Pressed.Id, m.configAccess, m.config)
 
 		if err != nil {
 			return m, tea.Quit
 		}
 
-		err = k8s.DeleteClusterEntry(m.contextToDelete, m.configAccess, m.config)
+		err = k8s.DeleteClusterEntry(msg.Pressed.Id, m.configAccess, m.config)
 
 		if err != nil {
 			return m, tea.Quit
 		}
 
-		err = k8s.DeleteUser(m.contextToDelete, m.configAccess, m.config)
+		err = k8s.DeleteUser(msg.Pressed.Id, m.configAccess, m.config)
 
 		if err != nil {
 			return m, tea.Quit
@@ -170,13 +163,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		items := []string{}
 
 		for k := range m.config.Contexts {
-			if k != m.contextToDelete {
+			if k != msg.Pressed.Id {
 				items = append(items, k)
 			}
 		}
 		sort.Strings(items)
 
-		m.contextToDelete = ""
 		m.activeDialog = nil
 		var cmd tea.Cmd
 		m.table, cmd = m.table.Update(searchtable.UpdateItems{Items: items})

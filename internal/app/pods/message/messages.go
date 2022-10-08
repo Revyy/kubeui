@@ -17,3 +17,11 @@ type ListPods struct {
 func NewListPods(podList *v1.PodList) ListPods {
 	return ListPods{PodList: podList}
 }
+
+type PodDeleted struct {
+	Name string
+}
+
+func NewPodDeleted(name string) PodDeleted {
+	return PodDeleted{Name: name}
+}

@@ -6,6 +6,7 @@ import (
 
 	"kubeui/internal/app/pods/message"
 	"kubeui/internal/pkg/component/columntable"
+	"kubeui/internal/pkg/component/confirm"
 	"kubeui/internal/pkg/component/searchtable"
 	"kubeui/internal/pkg/k8s"
 	"kubeui/internal/pkg/kubeui"
@@ -87,6 +88,9 @@ type Model struct {
 	// ColumnTable used to select a pod.
 	podTable columntable.ColumnTable
 
+	// Dialog used to confirm.
+	activeDialog *confirm.Dialog
+
 	// Indicates which state the application is in.
 	state AppState
 
@@ -124,10 +128,10 @@ func (m Model) ShortHelp() []key.Binding {
 		return []key.Binding{m.keys.quit}
 	}
 
-	bindings := []key.Binding{m.keys.help, m.keys.quit, m.keys.selectNamespace}
+	bindings := []key.Binding{m.keys.help, m.keys.quit}
 
-	if m.state == MAIN {
-		bindings = append(bindings, m.keys.refreshPodList)
+	if m.state == MAIN && m.activeDialog == nil {
+		bindings = append(bindings, m.keys.refreshPodList, m.keys.selectNamespace)
 	}
 
 	return bindings
@@ -142,19 +146,30 @@ func (m Model) FullHelp() [][]key.Binding {
 	}
 
 	bindings := [][]key.Binding{
-		{m.keys.help, m.keys.quit, m.keys.selectNamespace},
+		{m.keys.help, m.keys.quit},
 	}
 
 	switch m.state {
 	case NAMESPACE_SELECT:
 		bindings = append(bindings, m.namespaceTable.KeyList())
 	case MAIN:
-		bindings[0] = append(bindings[0], m.keys.refreshPodList)
-		if len(m.pods) > 0 {
+		if m.activeDialog == nil {
+			bindings[0] = append(bindings[0], m.keys.selectNamespace, m.keys.refreshPodList)
+		}
+
+		if len(m.pods) > 0 && m.activeDialog == nil {
 			bindings = append(bindings, m.podTable.KeyList())
+		}
+
+		if m.activeDialog != nil {
+			bindings = append(bindings, m.activeDialog.KeyList())
 		}
 	}
 	return bindings
+}
+
+func (m Model) InDialog() bool {
+	return m.activeDialog != nil
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -183,10 +198,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keys.help):
 			m.help.ShowAll = !m.help.ShowAll
 
-		case key.Matches(msg, m.keys.refreshPodList):
-			return m, m.listPods
-
-		case key.Matches(msg, m.keys.selectNamespace):
+		case key.Matches(msg, m.keys.selectNamespace) && !m.InDialog():
 
 			m.namespaceTable = searchtable.New(
 				m.namespaces,
@@ -236,27 +248,42 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 
-		m.podTable = columntable.New(podColumns, podRows, 10, "", false, columntable.Options{SingularItemName: "pod", StartInSearchMode: true})
+		m.podTable = columntable.New(podColumns, podRows, 10, "", true, columntable.Options{SingularItemName: "pod", StartInSearchMode: true})
 
 		if m.state != MAIN {
 			m.state = MAIN
 		}
 
 		return m, nil
+	case message.PodDeleted:
+		return m, m.listPods
 	}
+
+	var cmd tea.Cmd
 
 	switch m.state {
 	case NAMESPACE_SELECT:
-		return m.namespaceSelectUpdate(msg)
+		m, cmd = m.namespaceSelectUpdate(msg)
 	case MAIN:
-		return m.podSelectUpdate(msg)
+		m, cmd = m.podSelectUpdate(msg)
 	}
 
-	return m, nil
+	var dialog confirm.Dialog
+	if m.activeDialog != nil {
+		dialog, cmd = m.activeDialog.Update(msg)
+		m.activeDialog = &dialog
+	}
+
+	return m, cmd
 
 }
 
 func (m Model) namespaceSelectUpdate(msg tea.Msg) (Model, tea.Cmd) {
+
+	if m.InDialog() {
+		return m, nil
+	}
+
 	switch msgT := msg.(type) {
 	case searchtable.Selection:
 
@@ -276,9 +303,30 @@ func (m Model) namespaceSelectUpdate(msg tea.Msg) (Model, tea.Cmd) {
 }
 
 func (m Model) podSelectUpdate(msg tea.Msg) (Model, tea.Cmd) {
+
+	if m.InDialog() {
+		switch msgT := msg.(type) {
+		case confirm.ButtonPress:
+			m.activeDialog = nil
+			if msgT.Pressed.Desc == "Yes" {
+				return m, m.deletePod(msgT.Pressed.Id)
+			}
+		}
+		return m, nil
+	}
+
 	switch msgT := msg.(type) {
 	case columntable.Selection:
 		return m, newError(fmt.Errorf("you selected pod: %s", msgT.Id))
+	case columntable.Deletion:
+		dialog := confirm.New([]confirm.Button{{Desc: "Yes", Id: msgT.Id}, {Desc: "No", Id: msgT.Id}}, fmt.Sprintf("Are you sure you want to delete %s", msgT.Id))
+		m.activeDialog = &dialog
+		return m, nil
+
+	case tea.KeyMsg:
+		if key.Matches(msgT, m.keys.refreshPodList) {
+			return m, m.listPods
+		}
 	}
 
 	var cmd tea.Cmd
@@ -293,6 +341,11 @@ func (m Model) View() string {
 	helpView := m.help.View(m)
 	builder.WriteString(helpView)
 	builder.WriteString("\n\n")
+
+	if m.activeDialog != nil {
+		builder.WriteString(m.activeDialog.View())
+		return builder.String()
+	}
 
 	if m.state == INITIALIZING {
 		builder.WriteString("Loading...")
