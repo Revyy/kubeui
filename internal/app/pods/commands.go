@@ -10,12 +10,6 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func newError(err error) tea.Cmd {
-	return func() tea.Msg {
-		return err
-	}
-}
-
 func (m Model) listNamespaces() tea.Msg {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
