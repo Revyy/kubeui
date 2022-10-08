@@ -1,6 +1,7 @@
-package kubeui
+package kubeui_test
 
 import (
+	"kubeui/internal/pkg/kubeui"
 	"testing"
 )
 
@@ -19,7 +20,7 @@ func TestLineBreak(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := LineBreak(tt.str, tt.maxWidth); got != tt.want {
+			if got := kubeui.LineBreak(tt.str, tt.maxWidth); got != tt.want {
 				t.Errorf("LineBreak() =\n%v\nwant\n%v", got, tt.want)
 			}
 		})
@@ -39,7 +40,7 @@ func TestTruncate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := Truncate(tt.text, tt.maxLen); got != tt.want {
+			if got := kubeui.Truncate(tt.text, tt.maxLen); got != tt.want {
 				t.Errorf("Truncate() = %v, want %v", got, tt.want)
 			}
 		})
