@@ -37,27 +37,6 @@ func newAppKeyMap() *appKeyMap {
 	}
 }
 
-func NewModel(rawConfig api.Config, configAccess clientcmd.ConfigAccess) *Model {
-
-	items := []string{}
-
-	for k := range rawConfig.Contexts {
-		items = append(items, k)
-	}
-
-	sort.Strings(items)
-
-	table := searchtable.New(items, 10, rawConfig.CurrentContext, true, searchtable.Options{SingularItemName: "context"})
-
-	return &Model{
-		keys:         newAppKeyMap(),
-		config:       rawConfig,
-		configAccess: configAccess,
-		table:        table,
-		help:         help.New(),
-	}
-}
-
 // Model defines the base Model of the application.
 type Model struct {
 	// application level keybindings
@@ -84,6 +63,28 @@ type Model struct {
 	help help.Model
 }
 
+// NewModel creates a new cxs model.
+func NewModel(rawConfig api.Config, configAccess clientcmd.ConfigAccess) *Model {
+
+	contexts := []string{}
+
+	for c := range rawConfig.Contexts {
+		contexts = append(contexts, c)
+	}
+
+	sort.Strings(contexts)
+
+	table := searchtable.New(contexts, 10, rawConfig.CurrentContext, true, searchtable.Options{SingularItemName: "context"})
+
+	return &Model{
+		keys:         newAppKeyMap(),
+		config:       rawConfig,
+		configAccess: configAccess,
+		table:        table,
+		help:         help.New(),
+	}
+}
+
 // ShortHelp returns keybindings to be shown in the mini help view. It's part
 // of the key.Map interface.
 func (m Model) ShortHelp() []key.Binding {
@@ -99,6 +100,8 @@ func (m Model) FullHelp() [][]key.Binding {
 	}
 }
 
+// Update updates the model and optionally returns a command.
+// It is part of the bubbletea model interface.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
@@ -111,13 +114,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
-		switch {
-		case key.Matches(msg, m.keys.quit):
-			return m, tea.Quit
-		case key.Matches(msg, m.keys.help):
-			m.help.ShowAll = !m.help.ShowAll
-			return m, nil
-		}
+		return m.processKeyPress(msg)
 
 	case error:
 		return m, tea.Quit
@@ -142,26 +139,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
-		err := k8s.DeleteContext(msg.Pressed.Id, m.configAccess, m.config)
-
-		if err != nil {
-			return m, tea.Quit
-		}
-
-		err = k8s.DeleteClusterEntry(msg.Pressed.Id, m.configAccess, m.config)
-
-		if err != nil {
-			return m, tea.Quit
-		}
-
-		err = k8s.DeleteUser(msg.Pressed.Id, m.configAccess, m.config)
+		err := deleteContext(msg.Pressed.Id, m.configAccess, m.config)
 
 		if err != nil {
 			return m, tea.Quit
 		}
 
 		items := []string{}
-
 		for k := range m.config.Contexts {
 			if k != msg.Pressed.Id {
 				items = append(items, k)
@@ -188,6 +172,39 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 }
 
+// deleteContext deletes a kubernetes context and the corresponding cluster entry and user entry.
+func deleteContext(kubeCtx string, configAccess clientcmd.ConfigAccess, config api.Config) error {
+	err := k8s.DeleteContext(kubeCtx, configAccess, config)
+
+	if err != nil {
+		return err
+	}
+
+	err = k8s.DeleteClusterEntry(kubeCtx, configAccess, config)
+
+	if err != nil {
+		return err
+	}
+
+	err = k8s.DeleteUser(kubeCtx, configAccess, config)
+
+	return err
+}
+
+// processKeyPress handles key messages.
+func (m Model) processKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
+	switch {
+	case key.Matches(msg, m.keys.quit):
+		return m, tea.Quit
+	case key.Matches(msg, m.keys.help):
+		m.help.ShowAll = !m.help.ShowAll
+		return m, nil
+	}
+	return m, nil
+}
+
+// View returns the view for the model.
+// It is part of the bubbletea model interface.
 func (m Model) View() string {
 
 	builder := strings.Builder{}
@@ -206,6 +223,8 @@ func (m Model) View() string {
 	return builder.String()
 }
 
+// Init returns an initial command.
+// It is part of the bubbletea model interface.
 func (m Model) Init() tea.Cmd {
 	return nil
 }
