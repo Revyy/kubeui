@@ -114,7 +114,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
-		return m.processKeyPress(msg)
+		switch {
+		case key.Matches(msg, m.keys.quit):
+			return m, tea.Quit
+		case key.Matches(msg, m.keys.help):
+			m.help.ShowAll = !m.help.ShowAll
+			return m, nil
+		}
 
 	case error:
 		return m, tea.Quit
@@ -189,18 +195,6 @@ func deleteContext(kubeCtx string, configAccess clientcmd.ConfigAccess, config a
 	err = k8s.DeleteUser(kubeCtx, configAccess, config)
 
 	return err
-}
-
-// processKeyPress handles key messages.
-func (m Model) processKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
-	switch {
-	case key.Matches(msg, m.keys.quit):
-		return m, tea.Quit
-	case key.Matches(msg, m.keys.help):
-		m.help.ShowAll = !m.help.ShowAll
-		return m, nil
-	}
-	return m, nil
 }
 
 // View returns the view for the model.
