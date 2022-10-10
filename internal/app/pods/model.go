@@ -176,10 +176,8 @@ func (m Model) FullHelp() [][]key.Binding {
 	return bindings
 }
 
-func (m Model) InDialog() bool {
-	return m.activeDialog != nil
-}
-
+// Update updates the model and optionally returns a command.
+// It is part of the bubbletea model interface.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// If we are in the error state we only allow quitting.
@@ -206,7 +204,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case key.Matches(msg, m.keys.help):
 			m.help.ShowAll = !m.help.ShowAll
-		// We can only transition to NAMESPACE_SELECT from MAIN.
+		// We can only transition to NAMESPACE_SELECTION from POD_SELECTION.
 		case key.Matches(msg, m.keys.selectNamespace) && m.state == POD_SELECTION:
 			m.namespaceTable = searchtable.New(
 				m.namespaces,
@@ -240,6 +238,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+// initializingUpdate handles updates for the INITIALIZING app state.
 func (m Model) initializingUpdate(msg tea.Msg) (Model, tea.Cmd) {
 
 	switch msgT := msg.(type) {
@@ -255,6 +254,7 @@ func (m Model) initializingUpdate(msg tea.Msg) (Model, tea.Cmd) {
 		}
 
 		return m, m.listPods
+	// This is the result message of m.listPods.
 	case message.ListPods:
 		m.pods = msgT.PodList.Items
 		podColumns, podRows := podTableContents(m.pods)
@@ -268,6 +268,7 @@ func (m Model) initializingUpdate(msg tea.Msg) (Model, tea.Cmd) {
 	return m, nil
 }
 
+// namespaceSelectionUpdate handles updates for the NAMESPACE_SELECTION app state.
 func (m Model) namespaceSelectionUpdate(msg tea.Msg) (Model, tea.Cmd) {
 
 	switch msgT := msg.(type) {
@@ -279,7 +280,7 @@ func (m Model) namespaceSelectionUpdate(msg tea.Msg) (Model, tea.Cmd) {
 		}
 
 		m.currentNamespace = msgT.Value
-		m.state = INITIALIZING
+		m.state = POD_SELECTION
 		return m, m.listPods
 	}
 
@@ -288,6 +289,7 @@ func (m Model) namespaceSelectionUpdate(msg tea.Msg) (Model, tea.Cmd) {
 	return m, cmd
 }
 
+// podSelectionUpdate handles updates for the POD_SELECTION app state.
 func (m Model) podSelectionUpdate(msg tea.Msg) (Model, tea.Cmd) {
 
 	switch msgT := msg.(type) {
@@ -323,6 +325,7 @@ func (m Model) podSelectionUpdate(msg tea.Msg) (Model, tea.Cmd) {
 	return m, cmd
 }
 
+// confirmPodDeletionUpdate handles updates for the CONFIRM_POD_DELETION app state.
 func (m Model) confirmPodDeletionUpdate(msg tea.Msg) (Model, tea.Cmd) {
 
 	switch msgT := msg.(type) {
@@ -342,6 +345,8 @@ func (m Model) confirmPodDeletionUpdate(msg tea.Msg) (Model, tea.Cmd) {
 	return m, cmd
 }
 
+// View returns the view for the model.
+// It is part of the bubbletea model interface.
 func (m Model) View() string {
 
 	builder := strings.Builder{}
@@ -385,6 +390,8 @@ func (m Model) View() string {
 	return builder.String()
 }
 
+// Init returns an initial command.
+// It is part of the bubbletea model interface.
 func (m Model) Init() tea.Cmd {
 	return m.listNamespaces
 }
