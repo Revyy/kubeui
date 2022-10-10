@@ -10,6 +10,7 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// listNamespaces fetches all namespaces for the current context.
 func (m Model) listNamespaces() tea.Msg {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -24,6 +25,7 @@ func (m Model) listNamespaces() tea.Msg {
 	return message.NewInitialization(namespaces)
 }
 
+// listPods fetches all pods for the current context and namespace.
 func (m Model) listPods() tea.Msg {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -38,6 +40,7 @@ func (m Model) listPods() tea.Msg {
 	return message.NewListPods(pods)
 }
 
+// deletePod deletes a pod in the current context and namespace.
 func (m Model) deletePod(name string) tea.Cmd {
 
 	return func() tea.Msg {
