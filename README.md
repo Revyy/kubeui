@@ -17,6 +17,14 @@ make install
 ## Contribution
 Contribution is welcomed but keep in mind that this is very early days and the code structure is still very much experimental.
 
+### Run tests
+
+Tests are severely lacking at the moment but you can run them using `go test ./...` or just use the make target.
+
+```
+make test
+```
+
 ## Binaries
 
 ### cxs
