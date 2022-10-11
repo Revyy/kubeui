@@ -12,12 +12,14 @@ var (
 	selectedButtonStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "200", Dark: "200"})
 )
 
+// KeyMap defines the key bindings for the dialog.
 type KeyMap struct {
 	Left  key.Binding
 	Right key.Binding
 	Enter key.Binding
 }
 
+// newKeyMap creates a new KeyMap.
 func newKeyMap() *KeyMap {
 	return &KeyMap{
 		Left: key.NewBinding(
@@ -46,6 +48,7 @@ type ButtonPress struct {
 	Pressed Button
 }
 
+// Dialog defines a component use to confirm a choice.
 type Dialog struct {
 	keys    *KeyMap
 	cursor  int
@@ -64,6 +67,7 @@ func (d Dialog) KeyList() []key.Binding {
 	return keyList
 }
 
+// New creates a new Dialog.
 func New(buttons []Button, text string) Dialog {
 
 	return Dialog{
@@ -74,6 +78,8 @@ func New(buttons []Button, text string) Dialog {
 	}
 }
 
+// Update updates the model and optionally returns a command.
+// It is part of the bubbletea model interface.
 func (d Dialog) Update(msg tea.Msg) (Dialog, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -102,6 +108,8 @@ func (d Dialog) Update(msg tea.Msg) (Dialog, tea.Cmd) {
 	return d, nil
 }
 
+// View returns the view for the model.
+// It is part of the bubbletea model interface.
 func (d Dialog) View() string {
 	// The header
 	var dialogBuilder strings.Builder
@@ -123,6 +131,8 @@ func (d Dialog) View() string {
 	return dialogBuilder.String()
 }
 
+// Init returns an initial command.
+// It is part of the bubbletea model interface.
 func (d Dialog) Init() tea.Cmd {
 	return func() tea.Msg { return "" }
 }

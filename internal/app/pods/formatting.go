@@ -9,6 +9,7 @@ import (
 	"k8s.io/utils/integer"
 )
 
+// podTableContents creates the neccessary columns and rows for the columntable in order to display pod information.
 func podTableContents(pods []v1.Pod) ([]*columntable.Column, []*columntable.Row) {
 	podColumns := []*columntable.Column{
 		{Desc: "Name", Width: 4},

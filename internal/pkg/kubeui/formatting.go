@@ -3,13 +3,7 @@ package kubeui
 import (
 	"strings"
 	"unicode"
-
-	"github.com/charmbracelet/lipgloss"
 )
-
-var HelpBolderStyle = lipgloss.NewStyle().
-	BorderStyle(lipgloss.NormalBorder()).
-	BorderForeground(lipgloss.Color("63"))
 
 // LineBreak splits a string into multiple lines to make each line a max of maxWidth in length.
 func LineBreak(str string, maxWidth int) string {
