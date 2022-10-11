@@ -14,8 +14,10 @@ Then run:
 make install
 ```
 
+## Contribution
+Contribution is welcomed but keep in mind that this is very early days and the code structure is still very much experimental.
 
-## Utilities
+## Binaries
 
 ### cxs
 
