@@ -46,8 +46,8 @@ func newAppKeyMap() *appKeyMap {
 			key.WithHelp("ctrl+n", "Select namespace"),
 		),
 		refreshPodList: key.NewBinding(
-			key.WithKeys("ctrl+r", "cmd+r"),
-			key.WithHelp("ctrl+r,cmd+r", "Refresh pod list"),
+			key.WithKeys("ctrl+r"),
+			key.WithHelp("ctrl+r", "Refresh pod list"),
 		),
 	}
 }
