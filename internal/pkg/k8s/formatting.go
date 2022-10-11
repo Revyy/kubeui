@@ -8,9 +8,9 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/duration"
-	"k8s.io/utils/integer"
 )
 
+// ListPodFormat contains information about a pod, as shown when running `kubectl get pods`.
 type ListPodFormat struct {
 	Name     string
 	Ready    string
@@ -19,13 +19,19 @@ type ListPodFormat struct {
 	Age      string
 }
 
+// NewListPodFormat collects the ListPodFormat information for a given pod.
 func NewListPodFormat(pod v1.Pod) *ListPodFormat {
+	// Number of containers ready in the pod.
 	readyCount := calculateReadyCount(pod.Status.ContainerStatuses)
-	var maxRestarts int
-	initializing, status, lastRestart := isInitializing(pod)
 
+	var restartCount int
+	// We first collect information from the initContainers in the pod.
+	// Depending on the status of those we are in the initializing/creation phase of a pod or the running phase of a pod.
+	initializing, status, lastRestart := podInitStatus(pod)
+
+	// If we are not in the initializing phase then we collect information from the regular containers of the pod.
 	if !initializing {
-		status, lastRestart, maxRestarts = notInitializing(lastRestart, status, pod)
+		status, lastRestart, restartCount = podContainerStatus(lastRestart, status, pod)
 	}
 
 	// If the pod is scheduled for deletion.
@@ -44,7 +50,7 @@ func NewListPodFormat(pod v1.Pod) *ListPodFormat {
 	}
 	containersReadyStr := fmt.Sprintf("%d/%d", readyCount, len(pod.Status.ContainerStatuses))
 	podAgeStr := duration.HumanDuration(time.Since(pod.CreationTimestamp.Time))
-	podRestartStr := fmt.Sprintf("%d%s", maxRestarts, lastRestartStr)
+	podRestartStr := fmt.Sprintf("%d%s", restartCount, lastRestartStr)
 
 	return &ListPodFormat{
 		Name:     pod.Name,
@@ -55,6 +61,7 @@ func NewListPodFormat(pod v1.Pod) *ListPodFormat {
 	}
 }
 
+// calculateReadyCount counts the number of containers in a pod who are ready.
 func calculateReadyCount(containers []v1.ContainerStatus) int {
 	readyCount := 0
 
@@ -67,6 +74,7 @@ func calculateReadyCount(containers []v1.ContainerStatus) int {
 	return readyCount
 }
 
+// defaultPodStatus fetches the status of a pod based on its phase and potential status reason.
 func defaultPodStatus(pod v1.Pod) string {
 	// Default of pod
 	status := string(pod.Status.Phase)
@@ -77,10 +85,12 @@ func defaultPodStatus(pod v1.Pod) string {
 	return status
 }
 
+// notEmptyOr returns true if the string is not the empty string and it is not equal to notStr.
 func notEmptyOr(str, notStr string) bool {
 	return len(str) > 0 && str != notStr
 }
 
+// initContainerTerminationReason returns the termination reason for an initContainer.
 func initContainerTerminationReason(container v1.ContainerStatus) string {
 
 	if container.State.Terminated == nil {
@@ -98,6 +108,7 @@ func initContainerTerminationReason(container v1.ContainerStatus) string {
 	return fmt.Sprintf("Init:ExitCode:%d", container.State.Terminated.ExitCode)
 }
 
+// containerTerminationReason returns the termination reason for a regular container.
 func containerTerminationReason(container v1.ContainerStatus) string {
 
 	if container.State.Terminated == nil {
@@ -116,7 +127,10 @@ func containerTerminationReason(container v1.ContainerStatus) string {
 
 }
 
-func isInitializing(pod v1.Pod) (bool, string, metav1.Time) {
+// podInitStatus checks if a pod is in an initializing phase.
+// Meaning that is has failed or waiting init containers.
+// If it does we return true and information about the current status and possible latest restart time of the init containers.
+func podInitStatus(pod v1.Pod) (bool, string, metav1.Time) {
 	initializing := false
 	status := defaultPodStatus(pod)
 	lastRestart := metav1.Time{}
@@ -154,6 +168,7 @@ func isInitializing(pod v1.Pod) (bool, string, metav1.Time) {
 	return initializing, status, lastRestart
 }
 
+// function that checks if a pod is ready based on its conditions
 func podReadyCondition(conditions []v1.PodCondition) bool {
 	for _, condition := range conditions {
 		if condition.Type == v1.PodReady && condition.Status == v1.ConditionTrue {
@@ -163,13 +178,14 @@ func podReadyCondition(conditions []v1.PodCondition) bool {
 	return false
 }
 
-func notInitializing(lastRestart metav1.Time, status string, pod v1.Pod) (string, metav1.Time, int) {
-	maxRestarts := 0
+// podContainerStatus returns a status, possible last restart time and restart count for a pod based on its containers.
+func podContainerStatus(lastRestart metav1.Time, status string, pod v1.Pod) (string, metav1.Time, int) {
+	restartCount := 0
 
 	var hasRunningContainer bool
 
 	for _, container := range slices.Reverse(pod.Status.ContainerStatuses) {
-		maxRestarts = integer.IntMax(maxRestarts, int(container.RestartCount))
+		restartCount += int(container.RestartCount)
 
 		if container.LastTerminationState.Terminated != nil {
 			if lastRestart.Before(&container.LastTerminationState.Terminated.FinishedAt) {
@@ -201,6 +217,6 @@ func notInitializing(lastRestart metav1.Time, status string, pod v1.Pod) (string
 		}
 	}
 
-	return status, lastRestart, maxRestarts
+	return status, lastRestart, restartCount
 
 }

@@ -18,6 +18,7 @@ var (
 	highlightedStyle    = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "200", Dark: "200"})
 )
 
+// KeyMap defines the key bindings for the SearchTable.
 type KeyMap struct {
 	Search     key.Binding
 	ExitSearch key.Binding
@@ -50,6 +51,7 @@ type UpdateHighlighted struct {
 	RowId string
 }
 
+// newKeyMap creates a new KeyMap.
 func newKeyMap(itemName string) *KeyMap {
 
 	itemName = strings.ToLower(itemName)
@@ -123,6 +125,7 @@ type Options struct {
 	StartInSearchMode bool
 }
 
+// ColumnTable defines a component use to display data in tabular format.
 type ColumnTable struct {
 	keys   *KeyMap
 	cursor int
@@ -163,6 +166,7 @@ func (st ColumnTable) KeyList() []key.Binding {
 	return keyList
 }
 
+// calcSlice calculates the indexes to use to get a page out of a slice.
 func calcSlice(length, currentPage, pageSize int) (int, int) {
 	if pageSize == 0 {
 		return 0, 0
@@ -179,6 +183,7 @@ func calcSlice(length, currentPage, pageSize int) (int, int) {
 	return currentPage * pageSize, currentPage*pageSize + pageSize
 }
 
+// New creates a new ColumnTable.
 func New(columns []*Column, rows []*Row, pageSize int, previousChoice string, allowDelete bool, options Options) ColumnTable {
 	searchField := textinput.New()
 	searchField.Placeholder = ""
@@ -208,6 +213,8 @@ func New(columns []*Column, rows []*Row, pageSize int, previousChoice string, al
 	}
 }
 
+// Update updates the model and optionally returns a command.
+// It is part of the bubbletea model interface.
 func (ct ColumnTable) Update(msg tea.Msg) (ColumnTable, tea.Cmd) {
 
 	var cmd tea.Cmd
@@ -261,6 +268,7 @@ func (ct ColumnTable) Update(msg tea.Msg) (ColumnTable, tea.Cmd) {
 
 }
 
+// updateInselectMode updates the column table when in select mode.
 func updateInselectMode(ct ColumnTable, msg tea.Msg) (ColumnTable, tea.Cmd) {
 	switch msg := msg.(type) {
 
@@ -312,6 +320,7 @@ func updateInselectMode(ct ColumnTable, msg tea.Msg) (ColumnTable, tea.Cmd) {
 	return ct, nil
 }
 
+// updateInSearchMode updates the column table when in search mode.
 func updateInSearchMode(ct ColumnTable, msg tea.Msg) (ColumnTable, tea.Cmd) {
 	switch msg := msg.(type) {
 
@@ -327,6 +336,8 @@ func updateInSearchMode(ct ColumnTable, msg tea.Msg) (ColumnTable, tea.Cmd) {
 	return ct, nil
 }
 
+// View returns the view for the model.
+// It is part of the bubbletea model interface.
 func (ct ColumnTable) View() string {
 
 	var mainBuilder strings.Builder
@@ -409,6 +420,8 @@ func (ct ColumnTable) View() string {
 	return mainBuilder.String()
 }
 
+// Init returns an initial command.
+// It is part of the bubbletea model interface.
 func (n ColumnTable) Init() tea.Cmd {
-	return func() tea.Msg { return "" }
+	return nil
 }
