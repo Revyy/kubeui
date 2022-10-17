@@ -120,9 +120,9 @@ type Options struct {
 	Columns []*Column
 }
 
-// SearchTable defines a component that can be used to search and paginate a list of items.
+// Model defines a component that can be used to search and paginate a list of items.
 // It supports selection and deletion as well as updating the set of items in the table.
-type SearchTable struct {
+type Model struct {
 	keys   *KeyMap
 	cursor int
 	items  []string
@@ -142,7 +142,7 @@ type SearchTable struct {
 }
 
 // Returns a list of keybindings to be used in help text.
-func (st SearchTable) KeyList() []key.Binding {
+func (st Model) KeyList() []key.Binding {
 	keyList := []key.Binding{
 		st.keys.Search,
 		st.keys.ExitSearch,
@@ -177,8 +177,8 @@ func calcSlice(length, currentPage, pageSize int) (int, int) {
 	return currentPage * pageSize, currentPage*pageSize + pageSize
 }
 
-// New creates a new SearchTable.
-func New(items []string, pageSize int, previousChoice string, allowDelete bool, options Options) SearchTable {
+// New creates a new Model.
+func New(items []string, pageSize int, previousChoice string, allowDelete bool, options Options) Model {
 	searchField := textinput.New()
 	searchField.Placeholder = ""
 	searchField.Focus()
@@ -190,7 +190,7 @@ func New(items []string, pageSize int, previousChoice string, allowDelete bool, 
 
 	sliceStart, sliceEnd := calcSlice(numItems, 0, pageSize)
 
-	return SearchTable{
+	return Model{
 		keys:              newKeyMap(options.SingularItemName),
 		items:             items,
 		currentItemsSlice: items[sliceStart:sliceEnd],
@@ -207,7 +207,7 @@ func New(items []string, pageSize int, previousChoice string, allowDelete bool, 
 
 // Update updates the model and optionally returns a command.
 // It is part of the bubbletea model interface.
-func (st SearchTable) Update(msg tea.Msg) (SearchTable, tea.Cmd) {
+func (st Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 	var cmd tea.Cmd
 
@@ -260,7 +260,7 @@ func (st SearchTable) Update(msg tea.Msg) (SearchTable, tea.Cmd) {
 }
 
 // updateInselectMode updates a searchTable when in select mode.
-func updateInselectMode(st SearchTable, msg tea.Msg) (SearchTable, tea.Cmd) {
+func updateInselectMode(st Model, msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
 
 	// Is it a key press?
@@ -312,7 +312,7 @@ func updateInselectMode(st SearchTable, msg tea.Msg) (SearchTable, tea.Cmd) {
 }
 
 // updateInSearchMode updates a searchTable when in search mode.
-func updateInSearchMode(st SearchTable, msg tea.Msg) (SearchTable, tea.Cmd) {
+func updateInSearchMode(st Model, msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
 
 	case tea.KeyMsg:
@@ -329,7 +329,7 @@ func updateInSearchMode(st SearchTable, msg tea.Msg) (SearchTable, tea.Cmd) {
 
 // View returns the view for the model.
 // It is part of the bubbletea model interface.
-func (n SearchTable) View() string {
+func (n Model) View() string {
 
 	var mainBuilder strings.Builder
 
@@ -403,6 +403,6 @@ func (n SearchTable) View() string {
 
 // Init returns an initial command.
 // It is part of the bubbletea model interface.
-func (n SearchTable) Init() tea.Cmd {
+func (n Model) Init() tea.Cmd {
 	return nil
 }

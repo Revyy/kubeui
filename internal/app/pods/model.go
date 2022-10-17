@@ -91,13 +91,13 @@ type Model struct {
 	help help.Model
 
 	// SearchTable used to select a namespace.
-	namespaceTable searchtable.SearchTable
+	namespaceTable searchtable.Model
 
 	// ColumnTable used to select a pod.
-	podTable columntable.ColumnTable
+	podTable columntable.Model
 
 	// Dialog used to confirm.
-	activeDialog *confirm.Dialog
+	activeDialog *confirm.Model
 
 	// Indicates which state the application is in.
 	state AppState
@@ -371,7 +371,7 @@ func (m Model) View() string {
 		return builder.String()
 	}
 
-	statusBar := kubeui.StatusBarStyle.Width(m.windowSize.Width - 1).Render(fmt.Sprintf("Context: %s  Namespace: %s", m.config.CurrentContext, m.currentNamespace))
+	statusBar := kubeui.StatusBar(m.windowSize.Width-1, " ", fmt.Sprintf("Context: %s  Namespace: %s", m.config.CurrentContext, m.currentNamespace))
 	builder.WriteString(statusBar + "\n")
 
 	switch m.state {
