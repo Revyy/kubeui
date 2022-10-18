@@ -40,6 +40,24 @@ func (m Model) listPods() tea.Msg {
 	return message.NewListPods(pods)
 }
 
+// getPod fetches a pod in the current context and namespace.
+func (m Model) getPod(id string) tea.Cmd {
+
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+
+		pod, err := m.kubectl.CoreV1().Pods(m.currentNamespace).Get(ctx, id, v1.GetOptions{})
+
+		if err != nil {
+			return fmt.Errorf("failed to delete pod: %v", err)
+		}
+
+		return message.NewGetPod(pod)
+	}
+
+}
+
 // deletePod deletes a pod in the current context and namespace.
 func (m Model) deletePod(name string) tea.Cmd {
 

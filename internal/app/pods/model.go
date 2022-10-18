@@ -7,6 +7,7 @@ import (
 	"kubeui/internal/app/pods/message"
 	"kubeui/internal/pkg/component/columntable"
 	"kubeui/internal/pkg/component/confirm"
+	"kubeui/internal/pkg/component/podview"
 	"kubeui/internal/pkg/component/searchtable"
 	"kubeui/internal/pkg/k8s"
 	"kubeui/internal/pkg/kubeui"
@@ -25,6 +26,7 @@ import (
 // These keys will be checked before passing along a msg to underlying components.
 type appKeyMap struct {
 	quit            key.Binding
+	exitView        key.Binding
 	help            key.Binding
 	selectNamespace key.Binding
 	refreshPodList  key.Binding
@@ -36,6 +38,10 @@ func newAppKeyMap() *appKeyMap {
 		quit: key.NewBinding(
 			key.WithKeys("ctrl+c", "ctrl+q"),
 			key.WithHelp("ctrl+c,ctrl+q", "Quit"),
+		),
+		exitView: key.NewBinding(
+			key.WithKeys("esc"),
+			key.WithHelp("esc", "Exit current view"),
 		),
 		help: key.NewBinding(
 			key.WithKeys("ctrl+h"),
@@ -65,6 +71,8 @@ const (
 	NAMESPACE_SELECTION
 	// When the application is in the NAMESPACE_SELECTION state it allows the user to confirm or deny a pod deletion request.
 	CONFIRM_POD_DELETION
+	// When a pod has been selected and is being viewed.
+	PODVIEW
 	// When the application is in the ERROR state it allows the user to view an error message before quitting the application.
 	ERROR
 )
@@ -95,6 +103,12 @@ type Model struct {
 
 	// ColumnTable used to select a pod.
 	podTable columntable.Model
+
+	// PodView used to visualize a pod.
+	podView podview.Model
+
+	// The currently selected pod if any.
+	currentPod v1.Pod
 
 	// Dialog used to confirm.
 	activeDialog *confirm.Model
@@ -142,6 +156,10 @@ func (m Model) ShortHelp() []key.Binding {
 		bindings = append(bindings, m.keys.refreshPodList, m.keys.selectNamespace)
 	}
 
+	if m.state == PODVIEW {
+		bindings = append(bindings, m.keys.exitView)
+	}
+
 	return bindings
 }
 
@@ -172,6 +190,9 @@ func (m Model) FullHelp() [][]key.Binding {
 		if m.activeDialog != nil {
 			bindings = append(bindings, m.activeDialog.KeyList())
 		}
+	case PODVIEW:
+		bindings[0] = append(bindings[0], m.keys.exitView)
+		bindings = append(bindings, m.podView.KeyList())
 	}
 	return bindings
 }
@@ -193,6 +214,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.help.Width = msg.Width
 		m.windowSize = msg
+		m.podView = m.podView.SetWindowWidth(msg.Width)
 		return m, nil
 	case error:
 		m.state = ERROR
@@ -233,6 +255,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m, cmd = m.podSelectionUpdate(msg)
 	case CONFIRM_POD_DELETION:
 		m, cmd = m.confirmPodDeletionUpdate(msg)
+	case PODVIEW:
+		m, cmd = m.podViewUpdate(msg)
 	}
 
 	return m, cmd
@@ -301,10 +325,17 @@ func (m Model) podSelectionUpdate(msg tea.Msg) (Model, tea.Cmd) {
 		m.podTable, cmd = m.podTable.Update(columntable.UpdateRowsAndColumns{Rows: podRows, Columns: podColumns})
 		return m, cmd
 
+	// When a pod is selected we fetch an updated version of the pod.
 	case columntable.Selection:
-		m.state = ERROR
-		m.errorMessage = fmt.Sprintf("you selected pod: %s", msgT.Id)
-		return m, nil
+		return m, m.getPod(msgT.Id)
+
+	// When the pod is fetched then we move the state to PODVIEW and create a new podview to view the state of the pod.
+	case message.GetPod:
+		m.state = PODVIEW
+		m.podView = podview.New(*msgT.Pod, m.windowSize.Width)
+		m.currentPod = *msgT.Pod
+		return m, m.podView.Init()
+
 	case columntable.Deletion:
 		dialog := confirm.New([]confirm.Button{{Desc: "Yes", Id: msgT.Id}, {Desc: "No", Id: msgT.Id}}, fmt.Sprintf("Are you sure you want to delete %s", msgT.Id))
 		m.activeDialog = &dialog
@@ -322,6 +353,22 @@ func (m Model) podSelectionUpdate(msg tea.Msg) (Model, tea.Cmd) {
 
 	var cmd tea.Cmd
 	m.podTable, cmd = m.podTable.Update(msg)
+	return m, cmd
+}
+
+// podViewUpdate handles updates for the PODVIEW app state.
+func (m Model) podViewUpdate(msg tea.Msg) (Model, tea.Cmd) {
+
+	switch msgT := msg.(type) {
+	case tea.KeyMsg:
+		if key.Matches(msgT, m.keys.exitView) {
+			m.state = POD_SELECTION
+			return m, m.listPods
+		}
+	}
+
+	var cmd tea.Cmd
+	m.podView, cmd = m.podView.Update(msg)
 	return m, cmd
 }
 
@@ -371,11 +418,12 @@ func (m Model) View() string {
 		return builder.String()
 	}
 
-	statusBar := kubeui.StatusBar(m.windowSize.Width-1, " ", fmt.Sprintf("Context: %s  Namespace: %s", m.config.CurrentContext, m.currentNamespace))
-	builder.WriteString(statusBar + "\n")
+	baseStatusBar := kubeui.StatusBar(m.windowSize.Width-1, " ", fmt.Sprintf("Context: %s  Namespace: %s", m.config.CurrentContext, m.currentNamespace))
+	podViewStatusBar := kubeui.StatusBar(m.windowSize.Width-1, " ", fmt.Sprintf("Context: %s  Namespace: %s Pod: %s", m.config.CurrentContext, m.currentNamespace, m.currentPod.Name))
 
 	switch m.state {
 	case POD_SELECTION:
+		builder.WriteString(baseStatusBar + "\n")
 		if len(m.pods) == 0 {
 			builder.WriteString(fmt.Sprintf("No pods found in namespace %s", m.currentNamespace))
 			break
@@ -383,8 +431,11 @@ func (m Model) View() string {
 		builder.WriteString(m.podTable.View())
 
 	case NAMESPACE_SELECTION:
+		builder.WriteString(baseStatusBar + "\n")
 		builder.WriteString(m.namespaceTable.View())
-
+	case PODVIEW:
+		builder.WriteString(podViewStatusBar + "\n")
+		builder.WriteString(m.podView.View())
 	}
 
 	return builder.String()

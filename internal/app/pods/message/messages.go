@@ -31,3 +31,13 @@ type PodDeleted struct {
 func NewPodDeleted(name string) PodDeleted {
 	return PodDeleted{Name: name}
 }
+
+// GetPod is used as the result of fetching a pod in the current namespace.
+type GetPod struct {
+	Pod *v1.Pod
+}
+
+// NewGetPod creates a new GetPod message.
+func NewGetPod(pod *v1.Pod) GetPod {
+	return GetPod{Pod: pod}
+}
