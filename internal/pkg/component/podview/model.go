@@ -1,6 +1,7 @@
 package podview
 
 import (
+	"kubeui/internal/pkg/component/columntable"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -32,13 +33,13 @@ func newKeyMap() *KeyMap {
 
 // Model defines a component that can view and query different parts of a kubernetes pod.
 type Model struct {
-	keys     *KeyMap
-	cursor   int
-	sections []string
+	keys         *KeyMap
+	cursor       int
+	sections     []string
+	sectionViews map[string]podInfoFunc
 
 	windowWidth int
-
-	pod v1.Pod
+	pod         v1.Pod
 }
 
 // Returns a list of keybindings to be used in help text.
@@ -51,15 +52,29 @@ func (pv Model) KeyList() []key.Binding {
 	return keyList
 }
 
+type podInfoFunc func(pod v1.Pod, width int) string
+
 // New creates a new Model.
 func New(pod v1.Pod, windowWidth int) Model {
+
 	return Model{
 		keys:        newKeyMap(),
 		windowWidth: windowWidth,
-		sections: []string{
-			"Status",
-			"Annotations",
-			"Labels",
+		pod:         pod,
+		sections:    []string{"Status", "Annotations", "Labels"},
+		sectionViews: map[string]podInfoFunc{
+			"Status": func(pod v1.Pod, width int) string {
+				columns, row := podStatusTable(pod)
+				return lipgloss.NewStyle().Width(width).Render(columnTableData(columns, []*columntable.Row{row}))
+			},
+			"Annotations": func(pod v1.Pod, width int) string {
+				columns, rows := stringMapTable("Key", "Value", pod.Annotations)
+				return lipgloss.NewStyle().Width(width).Render(columnTableData(columns, rows))
+			},
+			"Labels": func(pod v1.Pod, width int) string {
+				columns, rows := stringMapTable("Key", "Value", pod.Labels)
+				return lipgloss.NewStyle().Width(width).Render(columnTableData(columns, rows))
+			},
 		},
 	}
 }
@@ -119,7 +134,16 @@ func (pv Model) View() string {
 		tabsBuilder.WriteString(section + " ")
 	}
 
-	return lipgloss.NewStyle().Width(pv.windowWidth).Render(tabsBuilder.String())
+	tabSelect := lipgloss.NewStyle().Width(pv.windowWidth).Render(tabsBuilder.String())
+
+	var mainBuilder strings.Builder
+
+	mainBuilder.WriteString(tabSelect)
+	mainBuilder.WriteString("\n\n")
+
+	mainBuilder.WriteString(pv.sectionViews[pv.sections[pv.cursor]](pv.pod, pv.windowWidth))
+
+	return mainBuilder.String()
 }
 
 // Init returns an initial command.
