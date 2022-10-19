@@ -33,10 +33,10 @@ func newKeyMap() *KeyMap {
 
 // Model defines a component that can view and query different parts of a kubernetes pod.
 type Model struct {
-	keys         *KeyMap
-	cursor       int
-	sections     []string
-	sectionViews map[string]podInfoFunc
+	keys   *KeyMap
+	cursor int
+	views  []string
+	view   view
 
 	windowWidth int
 	pod         v1.Pod
@@ -52,7 +52,40 @@ func (pv Model) KeyList() []key.Binding {
 	return keyList
 }
 
-type podInfoFunc func(pod v1.Pod, width int) string
+// view defines the different views of the component.
+type view uint16
+
+const (
+	// STATUS is used to display status information about the pod.
+	STATUS view = iota
+	// ANNOTATIONS is used to display the annotations set for the pod.
+	ANNOTATIONS
+	// LABELS is used to display the labels set for the pod.
+	LABELS
+	// LOGS is used to display the logs of the pod.
+	LOGS
+)
+
+var stringToSelectedView = map[string]view{
+	STATUS.String():      STATUS,
+	ANNOTATIONS.String(): ANNOTATIONS,
+	LABELS.String():      LABELS,
+	LOGS.String():        LOGS,
+}
+
+func (s view) String() string {
+	switch s {
+	case STATUS:
+		return "STATUS"
+	case ANNOTATIONS:
+		return "ANNOTATIONS"
+	case LABELS:
+		return "LABELS"
+	case LOGS:
+		return "LOGS"
+	}
+	return "UNKNOWN"
+}
 
 // New creates a new Model.
 func New(pod v1.Pod, windowWidth int) Model {
@@ -61,21 +94,7 @@ func New(pod v1.Pod, windowWidth int) Model {
 		keys:        newKeyMap(),
 		windowWidth: windowWidth,
 		pod:         pod,
-		sections:    []string{"Status", "Annotations", "Labels"},
-		sectionViews: map[string]podInfoFunc{
-			"Status": func(pod v1.Pod, width int) string {
-				columns, row := podStatusTable(pod)
-				return lipgloss.NewStyle().Width(width).Render(columnTableData(columns, []*columntable.Row{row}))
-			},
-			"Annotations": func(pod v1.Pod, width int) string {
-				columns, rows := stringMapTable("Key", "Value", pod.Annotations)
-				return lipgloss.NewStyle().Width(width).Render(columnTableData(columns, rows))
-			},
-			"Labels": func(pod v1.Pod, width int) string {
-				columns, rows := stringMapTable("Key", "Value", pod.Labels)
-				return lipgloss.NewStyle().Width(width).Render(columnTableData(columns, rows))
-			},
-		},
+		views:       []string{STATUS.String(), ANNOTATIONS.String(), LABELS.String()},
 	}
 }
 
@@ -99,18 +118,22 @@ func (pv Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			if pv.cursor > 0 {
 				pv.cursor--
 			} else {
-				pv.cursor = len(pv.sections) - 1
+				pv.cursor = len(pv.views) - 1
 			}
+			pv.view = stringToSelectedView[pv.views[pv.cursor]]
+
 			return pv, nil
 
 		// The "down" key move the cursor down
 		case key.Matches(msg, pv.keys.Right):
-			if pv.cursor < len(pv.sections)-1 {
+			if pv.cursor < len(pv.views)-1 {
 				pv.cursor++
 			} else {
 				pv.cursor = 0
 			}
+			pv.view = stringToSelectedView[pv.views[pv.cursor]]
 
+			return pv, nil
 		}
 	}
 	return pv, nil
@@ -120,30 +143,26 @@ func (pv Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 // It is part of the bubbletea model interface.
 func (pv Model) View() string {
 
-	var tabsBuilder strings.Builder
+	var builder strings.Builder
 
-	// Iterate over the items in the current page and print them out.
-	for i, section := range pv.sections {
+	builder.WriteString(tabsBuilder(pv.cursor, pv.windowWidth, pv.views))
+	builder.WriteString("\n\n")
 
-		// Is the cursor pointing at this choice?
-		if pv.cursor == i {
-			tabsBuilder.WriteString(lipgloss.NewStyle().Underline(true).Render(section) + " ")
-			continue
-		}
+	windowWithStyle := lipgloss.NewStyle().Width(pv.windowWidth)
 
-		tabsBuilder.WriteString(section + " ")
+	switch pv.view {
+	case STATUS:
+		columns, row := podStatusTable(pv.pod)
+		builder.WriteString(windowWithStyle.Render(columnTableData(columns, []*columntable.Row{row})))
+	case ANNOTATIONS:
+		columns, rows := stringMapTable("Key", "Value", pv.pod.Annotations)
+		builder.WriteString(windowWithStyle.Render(columnTableData(columns, rows)))
+	case LABELS:
+		columns, rows := stringMapTable("Key", "Value", pv.pod.Labels)
+		builder.WriteString(windowWithStyle.Render(columnTableData(columns, rows)))
 	}
 
-	tabSelect := lipgloss.NewStyle().Width(pv.windowWidth).Render(tabsBuilder.String())
-
-	var mainBuilder strings.Builder
-
-	mainBuilder.WriteString(tabSelect)
-	mainBuilder.WriteString("\n\n")
-
-	mainBuilder.WriteString(pv.sectionViews[pv.sections[pv.cursor]](pv.pod, pv.windowWidth))
-
-	return mainBuilder.String()
+	return builder.String()
 }
 
 // Init returns an initial command.

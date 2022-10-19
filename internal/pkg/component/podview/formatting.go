@@ -95,3 +95,22 @@ func columnTableData(columns []*columntable.Column, rows []*columntable.Row) str
 
 	return builder.String()
 }
+
+// tabsBuilder renders a tab select.
+func tabsBuilder(cursor, maxWidth int, headers []string) string {
+	var tabsBuilder strings.Builder
+
+	// Iterate over the items in the current page and print them out.
+	for i, header := range headers {
+
+		// Is the cursor pointing at this choice?
+		if cursor == i {
+			tabsBuilder.WriteString(lipgloss.NewStyle().Underline(true).Render(header) + " ")
+			continue
+		}
+
+		tabsBuilder.WriteString(header + " ")
+	}
+
+	return lipgloss.NewStyle().Width(maxWidth).Render(tabsBuilder.String())
+}
