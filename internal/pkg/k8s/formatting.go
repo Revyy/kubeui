@@ -61,6 +61,27 @@ func NewListPodFormat(pod v1.Pod) *ListPodFormat {
 	}
 }
 
+// ListEventFormat contains information about an event, as shown when running `kubectl describe pod` for example.
+type ListEventFormat struct {
+	Type    string
+	Reason  string
+	Age     string
+	From    string
+	Message string
+}
+
+// NewListEventFormat collects the ListEventFormat information.
+func NewListEventFormat(event v1.Event) *ListEventFormat {
+
+	return &ListEventFormat{
+		Type:    event.Type,
+		Reason:  event.Reason,
+		Age:     duration.HumanDuration(time.Since(event.CreationTimestamp.Time)),
+		From:    event.ReportingController,
+		Message: event.Message,
+	}
+}
+
 // calculateReadyCount counts the number of containers in a pod who are ready.
 func calculateReadyCount(containers []v1.ContainerStatus) int {
 	readyCount := 0

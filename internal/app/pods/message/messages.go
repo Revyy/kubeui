@@ -1,6 +1,10 @@
 package message
 
-import v1 "k8s.io/api/core/v1"
+import (
+	"kubeui/internal/pkg/k8s"
+
+	v1 "k8s.io/api/core/v1"
+)
 
 // Initialization is sent after fetching the initial list of available namespaces.
 type Initialization struct {
@@ -34,10 +38,13 @@ func NewPodDeleted(name string) PodDeleted {
 
 // GetPod is used as the result of fetching a pod in the current namespace.
 type GetPod struct {
-	Pod *v1.Pod
+	Pod *k8s.Pod
 }
 
 // NewGetPod creates a new GetPod message.
-func NewGetPod(pod *v1.Pod) GetPod {
-	return GetPod{Pod: pod}
+func NewGetPod(pod *v1.Pod, events []v1.Event) GetPod {
+	return GetPod{Pod: &k8s.Pod{
+		Pod:    *pod,
+		Events: events,
+	}}
 }

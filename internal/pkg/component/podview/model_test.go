@@ -1,15 +1,15 @@
 package podview
 
 import (
+	"kubeui/internal/pkg/k8s"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/stretchr/testify/assert"
-	v1 "k8s.io/api/core/v1"
 )
 
 func getModel() Model {
-	return New(v1.Pod{}, 100)
+	return New(k8s.Pod{}, 100)
 }
 
 func applyKeyMsgToNewModel(model Model, keyType tea.KeyType) (Model, tea.Cmd) {

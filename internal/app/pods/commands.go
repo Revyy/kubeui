@@ -50,10 +50,19 @@ func (m Model) getPod(id string) tea.Cmd {
 		pod, err := m.kubectl.CoreV1().Pods(m.currentNamespace).Get(ctx, id, v1.GetOptions{})
 
 		if err != nil {
-			return fmt.Errorf("failed to delete pod: %v", err)
+			return fmt.Errorf("failed to get pod: %v", err)
 		}
 
-		return message.NewGetPod(pod)
+		eventsCtx, eventsCancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer eventsCancel()
+
+		events, err := m.kubectl.CoreV1().Events(m.currentNamespace).List(eventsCtx, v1.ListOptions{FieldSelector: fmt.Sprintf("involvedObject.name=%s", pod.Name), TypeMeta: v1.TypeMeta{Kind: "Pod"}})
+
+		if err != nil {
+			return fmt.Errorf("failed to get pod events: %v", err)
+		}
+
+		return message.NewGetPod(pod, events.Items)
 	}
 
 }

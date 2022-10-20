@@ -2,12 +2,12 @@ package podview
 
 import (
 	"kubeui/internal/pkg/component/columntable"
+	"kubeui/internal/pkg/k8s"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	v1 "k8s.io/api/core/v1"
 )
 
 // keyMap defines the key bindings for the PodView.
@@ -39,7 +39,7 @@ type Model struct {
 	view   view
 
 	windowWidth int
-	pod         v1.Pod
+	pod         k8s.Pod
 }
 
 // Returns a list of keybindings to be used in help text.
@@ -62,6 +62,8 @@ const (
 	ANNOTATIONS
 	// LABELS is used to display the labels set for the pod.
 	LABELS
+	// EVENTS is used to display the latest events for the pod.
+	EVENTS
 	// LOGS is used to display the logs of the pod.
 	LOGS
 )
@@ -70,6 +72,7 @@ var stringToSelectedView = map[string]view{
 	STATUS.String():      STATUS,
 	ANNOTATIONS.String(): ANNOTATIONS,
 	LABELS.String():      LABELS,
+	EVENTS.String():      EVENTS,
 	LOGS.String():        LOGS,
 }
 
@@ -81,6 +84,8 @@ func (s view) String() string {
 		return "ANNOTATIONS"
 	case LABELS:
 		return "LABELS"
+	case EVENTS:
+		return "EVENTS"
 	case LOGS:
 		return "LOGS"
 	}
@@ -88,13 +93,13 @@ func (s view) String() string {
 }
 
 // New creates a new Model.
-func New(pod v1.Pod, windowWidth int) Model {
+func New(pod k8s.Pod, windowWidth int) Model {
 
 	return Model{
 		keys:        newKeyMap(),
 		windowWidth: windowWidth,
 		pod:         pod,
-		views:       []string{STATUS.String(), ANNOTATIONS.String(), LABELS.String()},
+		views:       []string{STATUS.String(), ANNOTATIONS.String(), LABELS.String(), EVENTS.String()},
 	}
 }
 
@@ -152,13 +157,16 @@ func (pv Model) View() string {
 
 	switch pv.view {
 	case STATUS:
-		columns, row := podStatusTable(pv.pod)
+		columns, row := podStatusTable(pv.pod.Pod)
 		builder.WriteString(windowWithStyle.Render(columnTableData(columns, []*columntable.Row{row})))
 	case ANNOTATIONS:
-		columns, rows := stringMapTable("Key", "Value", pv.pod.Annotations)
+		columns, rows := stringMapTable("Key", "Value", pv.pod.Pod.Annotations)
 		builder.WriteString(windowWithStyle.Render(columnTableData(columns, rows)))
 	case LABELS:
-		columns, rows := stringMapTable("Key", "Value", pv.pod.Labels)
+		columns, rows := stringMapTable("Key", "Value", pv.pod.Pod.Labels)
+		builder.WriteString(windowWithStyle.Render(columnTableData(columns, rows)))
+	case EVENTS:
+		columns, rows := eventsTable(pv.pod.Events)
 		builder.WriteString(windowWithStyle.Render(columnTableData(columns, rows)))
 	}
 

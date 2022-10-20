@@ -108,7 +108,7 @@ type Model struct {
 	podView podview.Model
 
 	// The currently selected pod if any.
-	currentPod v1.Pod
+	currentPod k8s.Pod
 
 	// Dialog used to confirm.
 	activeDialog *confirm.Model
@@ -419,7 +419,7 @@ func (m Model) View() string {
 	}
 
 	baseStatusBar := kubeui.StatusBar(m.windowSize.Width-1, " ", fmt.Sprintf("Context: %s  Namespace: %s", m.config.CurrentContext, m.currentNamespace))
-	podViewStatusBar := kubeui.StatusBar(m.windowSize.Width-1, " ", fmt.Sprintf("Context: %s  Namespace: %s Pod: %s", m.config.CurrentContext, m.currentNamespace, m.currentPod.Name))
+	podViewStatusBar := kubeui.StatusBar(m.windowSize.Width-1, " ", fmt.Sprintf("Context: %s  Namespace: %s Pod: %s", m.config.CurrentContext, m.currentNamespace, m.currentPod.Pod.GetName()))
 
 	switch m.state {
 	case POD_SELECTION:

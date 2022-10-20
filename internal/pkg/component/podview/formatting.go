@@ -14,6 +14,36 @@ import (
 	"k8s.io/utils/integer"
 )
 
+// eventsTable creates the neccessary columns and row in order to display event information.
+func eventsTable(events []v1.Event) ([]*columntable.Column, []*columntable.Row) {
+	eventColumns := []*columntable.Column{
+		{Desc: "Type", Width: 4},
+		{Desc: "Reason", Width: 6},
+		{Desc: "Age", Width: 3},
+		{Desc: "From", Width: 4},
+		{Desc: "Message", Width: 50},
+	}
+
+	eventRows := slices.Map(events, func(e v1.Event) *columntable.Row {
+
+		eventFormat := k8s.NewListEventFormat(e)
+
+		// Update widths of the name and status columns
+		eventColumns[0].Width = integer.IntMax(eventColumns[0].Width, len(eventFormat.Type))
+		eventColumns[1].Width = integer.IntMax(eventColumns[1].Width, len(eventFormat.Reason))
+		eventColumns[2].Width = integer.IntMax(eventColumns[2].Width, len(eventFormat.Age))
+		eventColumns[3].Width = integer.IntMax(eventColumns[3].Width, len(eventFormat.From))
+		eventColumns[4].Width = integer.IntMin(eventColumns[4].Width, len(eventFormat.Message))
+
+		return &columntable.Row{
+			Id:     e.InvolvedObject.Name,
+			Values: []string{eventFormat.Type, eventFormat.Reason, eventFormat.Age, eventFormat.From, eventFormat.Message},
+		}
+	})
+
+	return eventColumns, eventRows
+}
+
 // podStatusTable creates the neccessary columns and row in order to display pod information.
 func podStatusTable(pod v1.Pod) ([]*columntable.Column, *columntable.Row) {
 	podColumns := []*columntable.Column{
