@@ -10,16 +10,16 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
-// KeyMap defines the key bindings for the PodView.
-type KeyMap struct {
+// keyMap defines the key bindings for the PodView.
+type keyMap struct {
 	Left  key.Binding
 	Right key.Binding
 }
 
 // newKeyMap creates a new KeyMap.
-func newKeyMap() *KeyMap {
+func newKeyMap() *keyMap {
 
-	return &KeyMap{
+	return &keyMap{
 		Left: key.NewBinding(
 			key.WithKeys("left"),
 			key.WithHelp("up", "Move cursor left one position"),
@@ -33,7 +33,7 @@ func newKeyMap() *KeyMap {
 
 // Model defines a component that can view and query different parts of a kubernetes pod.
 type Model struct {
-	keys   *KeyMap
+	keys   *keyMap
 	cursor int
 	views  []string
 	view   view
