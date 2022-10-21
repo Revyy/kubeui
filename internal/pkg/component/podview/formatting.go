@@ -105,11 +105,28 @@ func stringMapTable(col1 string, col2 string, data map[string]string) ([]*column
 func columnTableData(columns []*columntable.Column, rows []*columntable.Row) string {
 	var builder strings.Builder
 
+	builder.WriteString(columnsString(columns) + "\n\n")
+
+	// Iterate over the rows in the current page and print them out.
+	builder.WriteString(rowsString(columns, rows))
+
+	return builder.String()
+}
+
+// columnsString converts a set of columns to an aligned string
+func columnsString(columns []*columntable.Column) string {
+
 	columnsData := slices.Map(columns, func(c *columntable.Column) string {
 		return lipgloss.NewStyle().Width(c.Width + 2).Render(c.Desc)
 	})
 
-	builder.WriteString(lipgloss.JoinHorizontal(lipgloss.Left, columnsData...) + "\n\n")
+	return lipgloss.JoinHorizontal(lipgloss.Left, columnsData...)
+}
+
+// rowsString converts a set of rows to an aligned string
+func rowsString(columns []*columntable.Column, rows []*columntable.Row) string {
+
+	var builder strings.Builder
 
 	// Iterate over the rows in the current page and print them out.
 	for _, row := range rows {
@@ -124,6 +141,7 @@ func columnTableData(columns []*columntable.Column, rows []*columntable.Row) str
 	}
 
 	return builder.String()
+
 }
 
 // tabsBuilder renders a tab select.

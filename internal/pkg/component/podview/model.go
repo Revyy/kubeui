@@ -6,9 +6,15 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
+
+// TODO: Make podview standalone with what it renders including status bar and help text, alternatively figure out how to pass in vertical margin.
+// TODO: Make all views use the viewport, just update the content of it.
+// TODO: Update viewport height and width when the window height changes.
+// TODO: Collect everything pre-content in its own view, perhaps pass in the header-view from the parent to this component so we can calculate the height.
 
 // keyMap defines the key bindings for the PodView.
 type keyMap struct {
@@ -38,8 +44,11 @@ type Model struct {
 	views  []string
 	view   view
 
-	windowWidth int
-	pod         k8s.Pod
+	viewPort viewport.Model
+
+	windowWidth  int
+	windowHeight int
+	pod          k8s.Pod
 }
 
 // Returns a list of keybindings to be used in help text.
@@ -93,20 +102,36 @@ func (s view) String() string {
 }
 
 // New creates a new Model.
-func New(pod k8s.Pod, windowWidth int) Model {
-
-	return Model{
-		keys:        newKeyMap(),
-		windowWidth: windowWidth,
-		pod:         pod,
-		views:       []string{STATUS.String(), ANNOTATIONS.String(), LABELS.String(), EVENTS.String()},
+func New(pod k8s.Pod, windowWidth, windowHeight int) Model {
+	model := Model{
+		keys:         newKeyMap(),
+		windowWidth:  windowWidth,
+		windowHeight: windowHeight,
+		pod:          pod,
+		viewPort:     viewport.New(windowWidth, windowHeight-10),
+		views:        []string{STATUS.String(), ANNOTATIONS.String(), LABELS.String(), EVENTS.String()},
 	}
+
+	model.viewPort.SetContent(model.eventsViewData())
+
+	return model
 }
 
 // SetWindowWidth sets a new window width value for the podview.
 func (pv Model) SetWindowWidth(width int) Model {
 	pv.windowWidth = width
 	return pv
+}
+
+// SetWindowHeight sets a new window height value for the podview.
+func (pv Model) SetWindowHeight(height int) Model {
+	pv.windowWidth = height
+	return pv
+}
+
+func (pv Model) eventsViewData() string {
+	columns, rows := eventsTable(pv.pod.Events)
+	return rowsString(columns, rows)
 }
 
 // Update updates the model and optionally returns a command.
@@ -141,6 +166,11 @@ func (pv Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			return pv, nil
 		}
 	}
+
+	if pv.view == EVENTS {
+		pv.viewPort, _ = pv.viewPort.Update(msg)
+	}
+
 	return pv, nil
 }
 
@@ -166,8 +196,9 @@ func (pv Model) View() string {
 		columns, rows := stringMapTable("Key", "Value", pv.pod.Pod.Labels)
 		builder.WriteString(windowWithStyle.Render(columnTableData(columns, rows)))
 	case EVENTS:
-		columns, rows := eventsTable(pv.pod.Events)
-		builder.WriteString(windowWithStyle.Render(columnTableData(columns, rows)))
+		columns, _ := eventsTable(pv.pod.Events)
+		builder.WriteString(lipgloss.NewStyle().Underline(true).Render(columnsString(columns)) + "\n\n")
+		builder.WriteString(pv.viewPort.View())
 	}
 
 	return builder.String()

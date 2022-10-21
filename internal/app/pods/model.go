@@ -215,6 +215,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.help.Width = msg.Width
 		m.windowSize = msg
 		m.podView = m.podView.SetWindowWidth(msg.Width)
+		m.podView = m.podView.SetWindowHeight(msg.Height)
 		return m, nil
 	case error:
 		m.state = ERROR
@@ -332,7 +333,7 @@ func (m Model) podSelectionUpdate(msg tea.Msg) (Model, tea.Cmd) {
 	// When the pod is fetched then we move the state to PODVIEW and create a new podview to view the state of the pod.
 	case message.GetPod:
 		m.state = PODVIEW
-		m.podView = podview.New(*msgT.Pod, m.windowSize.Width)
+		m.podView = podview.New(*msgT.Pod, m.windowSize.Width, m.windowSize.Height)
 		m.currentPod = *msgT.Pod
 		return m, m.podView.Init()
 
