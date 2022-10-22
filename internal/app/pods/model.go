@@ -15,6 +15,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/life4/genesis/slices"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
@@ -73,6 +74,8 @@ const (
 	CONFIRM_POD_DELETION
 	// When a pod has been selected and is being viewed.
 	PODVIEW
+	// When displaying the full help.
+	FULLHELP
 	// When the application is in the ERROR state it allows the user to view an error message before quitting the application.
 	ERROR
 )
@@ -115,6 +118,8 @@ type Model struct {
 
 	// Indicates which state the application is in.
 	state AppState
+	// The previous state of the application.
+	prevState AppState
 
 	// Error message to be displayed.
 	errorMessage string
@@ -167,7 +172,9 @@ func (m Model) ShortHelp() []key.Binding {
 // key.Map interface.
 func (m Model) FullHelp() [][]key.Binding {
 
-	if m.state == ERROR {
+	// We look at prevState here as we are in the FULLHELP state and want to display the full help of the previous state
+	// before going back there.
+	if m.prevState == ERROR {
 		return [][]key.Binding{{m.keys.quit}}
 	}
 
@@ -175,7 +182,7 @@ func (m Model) FullHelp() [][]key.Binding {
 		{m.keys.help, m.keys.quit},
 	}
 
-	switch m.state {
+	switch m.prevState {
 	case NAMESPACE_SELECTION:
 		bindings = append(bindings, m.namespaceTable.KeyList())
 	case POD_SELECTION:
@@ -197,6 +204,24 @@ func (m Model) FullHelp() [][]key.Binding {
 	return bindings
 }
 
+// updateState is used to set a new state.
+func (m Model) updateState(newState AppState) Model {
+	m.prevState = m.state
+	m.state = newState
+
+	return m
+}
+
+// windowSizeUpdate handles updates to the terminal window size.
+func (m Model) windowSizeUpdate(windowSize tea.WindowSizeMsg) Model {
+	m.help.Width = windowSize.Width
+	m.windowSize = windowSize
+	m.podView = m.podView.SetWindowWidth(windowSize.Width)
+	m.podView = m.podView.SetWindowHeight(windowSize.Height)
+
+	return m
+}
+
 // Update updates the model and optionally returns a command.
 // It is part of the bubbletea model interface.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -212,13 +237,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Global Keypresses and app messages.
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.help.Width = msg.Width
-		m.windowSize = msg
-		m.podView = m.podView.SetWindowWidth(msg.Width)
-		m.podView = m.podView.SetWindowHeight(msg.Height)
-		return m, nil
+		return m.windowSizeUpdate(msg), nil
 	case error:
-		m.state = ERROR
+		m = m.updateState(ERROR)
 		m.errorMessage = msg.Error()
 		return m, nil
 	case tea.KeyMsg:
@@ -226,7 +247,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keys.quit):
 			return m, tea.Quit
 		case key.Matches(msg, m.keys.help):
-			m.help.ShowAll = !m.help.ShowAll
+			if m.state == FULLHELP {
+				m = m.updateState(m.prevState)
+			} else {
+				m = m.updateState(FULLHELP)
+			}
 		// We can only transition to NAMESPACE_SELECTION from POD_SELECTION.
 		case key.Matches(msg, m.keys.selectNamespace) && m.state == POD_SELECTION:
 			m.namespaceTable = searchtable.New(
@@ -239,7 +264,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					StartInSearchMode: true,
 				},
 			)
-			m.state = NAMESPACE_SELECTION
+			m = m.updateState(NAMESPACE_SELECTION)
 			return m, nil
 		}
 	}
@@ -284,7 +309,7 @@ func (m Model) initializingUpdate(msg tea.Msg) (Model, tea.Cmd) {
 		m.pods = msgT.PodList.Items
 		podColumns, podRows := podTableContents(m.pods)
 		m.podTable = columntable.New(podColumns, podRows, 10, "", true, columntable.Options{SingularItemName: "pod", StartInSearchMode: true})
-		m.state = POD_SELECTION
+		m = m.updateState(POD_SELECTION)
 
 		return m, nil
 
@@ -305,7 +330,7 @@ func (m Model) namespaceSelectionUpdate(msg tea.Msg) (Model, tea.Cmd) {
 		}
 
 		m.currentNamespace = msgT.Value
-		m.state = POD_SELECTION
+		m = m.updateState(POD_SELECTION)
 		return m, m.listPods
 	}
 
@@ -332,15 +357,15 @@ func (m Model) podSelectionUpdate(msg tea.Msg) (Model, tea.Cmd) {
 
 	// When the pod is fetched then we move the state to PODVIEW and create a new podview to view the state of the pod.
 	case message.GetPod:
-		m.state = PODVIEW
-		m.podView = podview.New(*msgT.Pod, m.windowSize.Width, m.windowSize.Height)
+		m = m.updateState(PODVIEW)
+		m.podView = podview.New(*msgT.Pod, lipgloss.Height(m.headerView()), m.windowSize.Width, m.windowSize.Height)
 		m.currentPod = *msgT.Pod
 		return m, m.podView.Init()
 
 	case columntable.Deletion:
 		dialog := confirm.New([]confirm.Button{{Desc: "Yes", Id: msgT.Id}, {Desc: "No", Id: msgT.Id}}, fmt.Sprintf("Are you sure you want to delete %s", msgT.Id))
 		m.activeDialog = &dialog
-		m.state = CONFIRM_POD_DELETION
+		m = m.updateState(CONFIRM_POD_DELETION)
 		return m, nil
 
 	case message.PodDeleted:
@@ -363,7 +388,7 @@ func (m Model) podViewUpdate(msg tea.Msg) (Model, tea.Cmd) {
 	switch msgT := msg.(type) {
 	case tea.KeyMsg:
 		if key.Matches(msgT, m.keys.exitView) {
-			m.state = POD_SELECTION
+			m = m.updateState(POD_SELECTION)
 			return m, m.listPods
 		}
 	}
@@ -378,7 +403,7 @@ func (m Model) confirmPodDeletionUpdate(msg tea.Msg) (Model, tea.Cmd) {
 
 	switch msgT := msg.(type) {
 	case confirm.ButtonPress:
-		m.state = POD_SELECTION
+		m = m.updateState(POD_SELECTION)
 		m.activeDialog = nil
 		if msgT.Pressed.Desc == "Yes" {
 			return m, m.deletePod(msgT.Pressed.Id)
@@ -393,50 +418,62 @@ func (m Model) confirmPodDeletionUpdate(msg tea.Msg) (Model, tea.Cmd) {
 	return m, cmd
 }
 
+func (m Model) headerView() string {
+	builder := strings.Builder{}
+	helpView := m.help.ShortHelpView(m.ShortHelp())
+	builder.WriteString(helpView)
+	builder.WriteString("\n\n")
+
+	if slices.Contains([]AppState{CONFIRM_POD_DELETION, INITIALIZING, ERROR}, m.state) {
+		return builder.String()
+	}
+
+	switch m.state {
+	case PODVIEW:
+		podViewStatusBar := kubeui.StatusBar(m.windowSize.Width-1, " ", fmt.Sprintf("Context: %s  Namespace: %s Pod: %s", m.config.CurrentContext, m.currentNamespace, m.currentPod.Pod.GetName()))
+		builder.WriteString(podViewStatusBar + "\n")
+	default:
+		baseStatusBar := kubeui.StatusBar(m.windowSize.Width-1, " ", fmt.Sprintf("Context: %s  Namespace: %s", m.config.CurrentContext, m.currentNamespace))
+		builder.WriteString(baseStatusBar + "\n")
+	}
+
+	return builder.String()
+}
+
 // View returns the view for the model.
 // It is part of the bubbletea model interface.
 func (m Model) View() string {
 
 	builder := strings.Builder{}
 
-	helpView := m.help.View(m)
-	builder.WriteString(helpView)
-	builder.WriteString("\n\n")
-
-	if m.state == CONFIRM_POD_DELETION && m.activeDialog != nil {
-		builder.WriteString(m.activeDialog.View())
-		return builder.String()
-	}
-
-	if m.state == INITIALIZING {
+	switch m.state {
+	case INITIALIZING:
 		builder.WriteString("Loading...")
-		return builder.String()
-	}
-
-	if m.state == ERROR {
+	case ERROR:
+		builder.WriteString(m.headerView())
 		builder.WriteString("An error occured\n\n")
 		builder.WriteString(kubeui.ErrorMessageStyle.Render(kubeui.LineBreak(m.errorMessage, m.windowSize.Width)))
-		return builder.String()
-	}
 
-	baseStatusBar := kubeui.StatusBar(m.windowSize.Width-1, " ", fmt.Sprintf("Context: %s  Namespace: %s", m.config.CurrentContext, m.currentNamespace))
-	podViewStatusBar := kubeui.StatusBar(m.windowSize.Width-1, " ", fmt.Sprintf("Context: %s  Namespace: %s Pod: %s", m.config.CurrentContext, m.currentNamespace, m.currentPod.Pod.GetName()))
-
-	switch m.state {
+	case CONFIRM_POD_DELETION:
+		builder.WriteString(m.headerView())
+		if m.activeDialog != nil {
+			builder.WriteString(m.activeDialog.View())
+		}
 	case POD_SELECTION:
-		builder.WriteString(baseStatusBar + "\n")
+		builder.WriteString(m.headerView())
 		if len(m.pods) == 0 {
 			builder.WriteString(fmt.Sprintf("No pods found in namespace %s", m.currentNamespace))
 			break
 		}
 		builder.WriteString(m.podTable.View())
-
 	case NAMESPACE_SELECTION:
-		builder.WriteString(baseStatusBar + "\n")
+		builder.WriteString(m.headerView())
 		builder.WriteString(m.namespaceTable.View())
 	case PODVIEW:
-		builder.WriteString(podViewStatusBar + "\n")
+		builder.WriteString(m.headerView())
 		builder.WriteString(m.podView.View())
+	case FULLHELP:
+		builder.WriteString(m.help.FullHelpView(m.FullHelp()))
 	}
 
 	return builder.String()

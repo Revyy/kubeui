@@ -9,7 +9,7 @@ import (
 )
 
 func getModel() Model {
-	return New(k8s.Pod{}, 100, 100)
+	return New(k8s.Pod{}, 10, 100, 100)
 }
 
 func applyKeyMsgToNewModel(model Model, keyType tea.KeyType) (Model, tea.Cmd) {

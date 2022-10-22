@@ -1,8 +1,8 @@
 package podview
 
 import (
-	"kubeui/internal/pkg/component/columntable"
 	"kubeui/internal/pkg/k8s"
+	"kubeui/internal/pkg/kubeui"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -46,9 +46,10 @@ type Model struct {
 
 	viewPort viewport.Model
 
-	windowWidth  int
-	windowHeight int
-	pod          k8s.Pod
+	verticalMargin int
+	windowWidth    int
+	windowHeight   int
+	pod            k8s.Pod
 }
 
 // Returns a list of keybindings to be used in help text.
@@ -102,19 +103,26 @@ func (s view) String() string {
 }
 
 // New creates a new Model.
-func New(pod k8s.Pod, windowWidth, windowHeight int) Model {
+func New(pod k8s.Pod, verticalMargin, windowWidth, windowHeight int) Model {
 	model := Model{
-		keys:         newKeyMap(),
-		windowWidth:  windowWidth,
-		windowHeight: windowHeight,
-		pod:          pod,
-		viewPort:     viewport.New(windowWidth, windowHeight-10),
-		views:        []string{STATUS.String(), ANNOTATIONS.String(), LABELS.String(), EVENTS.String()},
+		keys:           newKeyMap(),
+		windowWidth:    windowWidth,
+		windowHeight:   windowHeight,
+		verticalMargin: verticalMargin,
+		pod:            pod,
+		views:          []string{STATUS.String(), ANNOTATIONS.String(), LABELS.String(), EVENTS.String()},
 	}
 
-	model.viewPort.SetContent(model.eventsViewData())
-
+	model.viewPort = viewport.New(windowWidth, windowHeight-model.calculateViewportOffest())
+	model.viewPort.SetContent(model.viewPortContent())
 	return model
+}
+
+// SetVerticalMargin sets a new vertical margin, this is used to calculate the height of the viewport.
+// A parent component should call this if its content height prior to this components view changes.
+func (pv Model) SetVerticalMargin(verticalMargin int) Model {
+	pv.verticalMargin = verticalMargin
+	return pv
 }
 
 // SetWindowWidth sets a new window width value for the podview.
@@ -129,11 +137,6 @@ func (pv Model) SetWindowHeight(height int) Model {
 	return pv
 }
 
-func (pv Model) eventsViewData() string {
-	columns, rows := eventsTable(pv.pod.Events)
-	return rowsString(columns, rows)
-}
-
 // Update updates the model and optionally returns a command.
 // It is part of the bubbletea model interface.
 func (pv Model) Update(msg tea.Msg) (Model, tea.Cmd) {
@@ -143,7 +146,7 @@ func (pv Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	case tea.KeyMsg:
 		// Cool, what was the actual key pressed?
 		switch {
-		// The "up" key move the cursor up
+		// The "left" key move the cursor left
 		case key.Matches(msg, pv.keys.Left):
 			if pv.cursor > 0 {
 				pv.cursor--
@@ -152,9 +155,7 @@ func (pv Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			}
 			pv.view = stringToSelectedView[pv.views[pv.cursor]]
 
-			return pv, nil
-
-		// The "down" key move the cursor down
+		// The "right" key move the cursor right
 		case key.Matches(msg, pv.keys.Right):
 			if pv.cursor < len(pv.views)-1 {
 				pv.cursor++
@@ -162,16 +163,54 @@ func (pv Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				pv.cursor = 0
 			}
 			pv.view = stringToSelectedView[pv.views[pv.cursor]]
-
-			return pv, nil
 		}
 	}
 
-	if pv.view == EVENTS {
-		pv.viewPort, _ = pv.viewPort.Update(msg)
-	}
+	pv.viewPort.SetContent(pv.viewPortContent())
+	pv.viewPort.Height = pv.windowHeight - pv.calculateViewportOffest()
+	pv.viewPort, _ = pv.viewPort.Update(msg)
 
 	return pv, nil
+}
+
+func (pv Model) viewPortContent() string {
+	switch pv.view {
+	case STATUS:
+		columns, row := kubeui.PodStatusTable(pv.pod.Pod)
+		return kubeui.RowsString(columns, []*kubeui.DataRow{row})
+	case ANNOTATIONS:
+		return kubeui.RowsString(kubeui.StringMapTable("Key", "Value", pv.pod.Pod.Annotations))
+	case LABELS:
+		return kubeui.RowsString(kubeui.StringMapTable("Key", "Value", pv.pod.Pod.Labels))
+	case EVENTS:
+		return kubeui.RowsString(kubeui.EventsTable(pv.pod.Events))
+	}
+
+	return ""
+}
+
+func (pv Model) calculateViewportOffest() int {
+	return lipgloss.Height(pv.tableHeaderView()) + lipgloss.Height(pv.tabsView()) + pv.verticalMargin
+}
+
+func (pv Model) tabsView() string {
+	return kubeui.TabsSelect(pv.cursor, pv.windowWidth, pv.views) + "\n\n"
+}
+
+func (pv Model) tableHeaderView() string {
+
+	var columns []*kubeui.DataColumn
+	switch pv.view {
+	case STATUS:
+		columns, _ = kubeui.PodStatusTable(pv.pod.Pod)
+	case ANNOTATIONS:
+		columns, _ = kubeui.StringMapTable("Key", "Value", pv.pod.Pod.Annotations)
+	case LABELS:
+		columns, _ = kubeui.StringMapTable("Key", "Value", pv.pod.Pod.Labels)
+	case EVENTS:
+		columns, _ = kubeui.EventsTable(pv.pod.Events)
+	}
+	return lipgloss.NewStyle().Width(pv.windowWidth).Underline(true).Render(kubeui.ColumnsString(columns)) + "\n\n"
 }
 
 // View returns the view for the model.
@@ -179,27 +218,9 @@ func (pv Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 func (pv Model) View() string {
 
 	var builder strings.Builder
-
-	builder.WriteString(tabsBuilder(pv.cursor, pv.windowWidth, pv.views))
-	builder.WriteString("\n\n")
-
-	windowWithStyle := lipgloss.NewStyle().Width(pv.windowWidth)
-
-	switch pv.view {
-	case STATUS:
-		columns, row := podStatusTable(pv.pod.Pod)
-		builder.WriteString(windowWithStyle.Render(columnTableData(columns, []*columntable.Row{row})))
-	case ANNOTATIONS:
-		columns, rows := stringMapTable("Key", "Value", pv.pod.Pod.Annotations)
-		builder.WriteString(windowWithStyle.Render(columnTableData(columns, rows)))
-	case LABELS:
-		columns, rows := stringMapTable("Key", "Value", pv.pod.Pod.Labels)
-		builder.WriteString(windowWithStyle.Render(columnTableData(columns, rows)))
-	case EVENTS:
-		columns, _ := eventsTable(pv.pod.Events)
-		builder.WriteString(lipgloss.NewStyle().Underline(true).Render(columnsString(columns)) + "\n\n")
-		builder.WriteString(pv.viewPort.View())
-	}
+	builder.WriteString(pv.tabsView())
+	builder.WriteString(pv.tableHeaderView())
+	builder.WriteString(pv.viewPort.View())
 
 	return builder.String()
 }
