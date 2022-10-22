@@ -216,9 +216,6 @@ func (m Model) updateState(newState AppState) Model {
 func (m Model) windowSizeUpdate(windowSize tea.WindowSizeMsg) Model {
 	m.help.Width = windowSize.Width
 	m.windowSize = windowSize
-	m.podView = m.podView.SetWindowWidth(windowSize.Width)
-	m.podView = m.podView.SetWindowHeight(windowSize.Height)
-
 	return m
 }
 
@@ -237,6 +234,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Global Keypresses and app messages.
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
+		m.podView, _ = m.podView.Update(msg)
 		return m.windowSizeUpdate(msg), nil
 	case error:
 		m = m.updateState(ERROR)

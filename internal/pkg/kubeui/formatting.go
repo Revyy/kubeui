@@ -91,7 +91,7 @@ type DataRow struct {
 }
 
 // EventsTable creates the neccessary columns and row in order to display event information.
-func EventsTable(events []v1.Event) ([]*DataColumn, []*DataRow) {
+func EventsTable(maxWidth int, events []v1.Event) ([]*DataColumn, []*DataRow) {
 	eventColumns := []*DataColumn{
 		{desc: "Type", width: 4},
 		{desc: "Reason", width: 6},
@@ -109,7 +109,16 @@ func EventsTable(events []v1.Event) ([]*DataColumn, []*DataRow) {
 		eventColumns[1].width = integer.IntMax(eventColumns[1].width, len(eventFormat.Reason))
 		eventColumns[2].width = integer.IntMax(eventColumns[2].width, len(eventFormat.Age))
 		eventColumns[3].width = integer.IntMax(eventColumns[3].width, len(eventFormat.From))
-		eventColumns[4].width = integer.IntMin(eventColumns[4].width, len(eventFormat.Message))
+
+		remainingWidth := maxWidth - slices.Reduce(eventColumns[0:5], 0, func(c *DataColumn, acc int) int {
+			return acc + c.width
+		})
+
+		eventColumns[4].width = integer.IntMax(remainingWidth-1, len(eventFormat.Message))
+
+		if eventColumns[4].width < 30 {
+			eventColumns[4].width = 30
+		}
 
 		return &DataRow{
 			values: []string{eventFormat.Type, eventFormat.Reason, eventFormat.Age, eventFormat.From, eventFormat.Message},

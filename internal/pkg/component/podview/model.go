@@ -18,20 +18,6 @@ import (
 // TODO: Update viewport height and width when the window height changes.
 // TODO: Collect everything pre-content in its own view, perhaps pass in the header-view from the parent to this component so we can calculate the height.
 
-var (
-	titleStyle = func() lipgloss.Style {
-		b := lipgloss.RoundedBorder()
-		b.Right = "├"
-		return lipgloss.NewStyle().BorderStyle(b).Padding(0, 1)
-	}()
-
-	infoStyle = func() lipgloss.Style {
-		b := lipgloss.RoundedBorder()
-		b.Left = "┤"
-		return titleStyle.Copy().BorderStyle(b)
-	}()
-)
-
 // keyMap defines the key bindings for the PodView.
 type keyMap struct {
 	Left  key.Binding
@@ -44,11 +30,11 @@ func newKeyMap() *keyMap {
 	return &keyMap{
 		Left: key.NewBinding(
 			key.WithKeys("left"),
-			key.WithHelp("up", "Move cursor left one position"),
+			key.WithHelp("left", "Move cursor left one position"),
 		),
 		Right: key.NewBinding(
 			key.WithKeys("right"),
-			key.WithHelp("down", "Move cursor right one position"),
+			key.WithHelp("right", "Move cursor right one position"),
 		),
 	}
 }
@@ -70,9 +56,18 @@ type Model struct {
 
 // Returns a list of keybindings to be used in help text.
 func (pv Model) KeyList() []key.Binding {
+
+	viewPortKeys := viewport.DefaultKeyMap()
+
 	keyList := []key.Binding{
 		pv.keys.Left,
 		pv.keys.Right,
+		viewPortKeys.Up,
+		viewPortKeys.Down,
+		viewPortKeys.PageUp,
+		viewPortKeys.PageDown,
+		viewPortKeys.HalfPageUp,
+		viewPortKeys.HalfPageDown,
 	}
 
 	return keyList
@@ -144,12 +139,14 @@ func (pv Model) SetVerticalMargin(verticalMargin int) Model {
 // SetWindowWidth sets a new window width value for the podview.
 func (pv Model) SetWindowWidth(width int) Model {
 	pv.windowWidth = width
+	pv.viewPort.Width = pv.windowWidth
 	return pv
 }
 
 // SetWindowHeight sets a new window height value for the podview.
 func (pv Model) SetWindowHeight(height int) Model {
 	pv.windowWidth = height
+	pv.viewPort.Height = pv.windowHeight - pv.calculateViewportOfset()
 	return pv
 }
 
@@ -157,7 +154,9 @@ func (pv Model) SetWindowHeight(height int) Model {
 // It is part of the bubbletea model interface.
 func (pv Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
-
+	case tea.WindowSizeMsg:
+		pv.windowWidth = msg.Width
+		pv.windowHeight = msg.Height
 	// Is it a key press?
 	case tea.KeyMsg:
 		// Cool, what was the actual key pressed?
@@ -182,6 +181,8 @@ func (pv Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		}
 	}
 
+	// Update the width, content and height of the viewport.
+	pv.viewPort.Width = pv.windowWidth
 	pv.viewPort.SetContent(pv.viewPortContent())
 	pv.viewPort.Height = pv.windowHeight - pv.calculateViewportOfset()
 	pv.viewPort, _ = pv.viewPort.Update(msg)
@@ -199,7 +200,7 @@ func (pv Model) viewPortContent() string {
 	case LABELS:
 		return kubeui.RowsString(kubeui.StringMapTable("Key", "Value", pv.pod.Pod.Labels))
 	case EVENTS:
-		return kubeui.RowsString(kubeui.EventsTable(pv.pod.Events))
+		return kubeui.RowsString(kubeui.EventsTable(pv.viewPort.Width, pv.pod.Events))
 	}
 
 	return ""
@@ -224,7 +225,7 @@ func (pv Model) tableHeaderView() string {
 	case LABELS:
 		columns, _ = kubeui.StringMapTable("Key", "Value", pv.pod.Pod.Labels)
 	case EVENTS:
-		columns, _ = kubeui.EventsTable(pv.pod.Events)
+		columns, _ = kubeui.EventsTable(pv.viewPort.Width, pv.pod.Events)
 	}
 
 	line := strings.Repeat("─", pv.viewPort.Width)
@@ -233,10 +234,9 @@ func (pv Model) tableHeaderView() string {
 
 func (pv Model) footerView() string {
 
-	info := infoStyle.Render(fmt.Sprintf("%3.f%%", pv.viewPort.ScrollPercent()*100))
+	info := fmt.Sprintf("%3.f%%", pv.viewPort.ScrollPercent()*100) // infoStyle.Render()
 	line := strings.Repeat("─", integer.IntMax(0, pv.viewPort.Width-lipgloss.Width(info)))
-	return lipgloss.JoinHorizontal(lipgloss.Center, line, info)
-
+	return "\n" + lipgloss.JoinHorizontal(lipgloss.Center, line, info)
 }
 
 // View returns the view for the model.
