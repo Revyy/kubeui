@@ -13,11 +13,6 @@ import (
 	"k8s.io/utils/integer"
 )
 
-// TODO: Make podview standalone with what it renders including status bar and help text, alternatively figure out how to pass in vertical margin.
-// TODO: Make all views use the viewport, just update the content of it.
-// TODO: Update viewport height and width when the window height changes.
-// TODO: Collect everything pre-content in its own view, perhaps pass in the header-view from the parent to this component so we can calculate the height.
-
 // keyMap defines the key bindings for the PodView.
 type keyMap struct {
 	Left  key.Binding
