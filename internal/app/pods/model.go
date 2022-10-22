@@ -234,6 +234,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Global Keypresses and app messages.
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
+		// The podview requires access to window resize message in order to adjust the size of its viewport.
 		m.podView, _ = m.podView.Update(msg)
 		return m.windowSizeUpdate(msg), nil
 	case error:
@@ -341,6 +342,7 @@ func (m Model) namespaceSelectionUpdate(msg tea.Msg) (Model, tea.Cmd) {
 func (m Model) podSelectionUpdate(msg tea.Msg) (Model, tea.Cmd) {
 
 	switch msgT := msg.(type) {
+	// The message sent after a new list of pods have been fetched using the listPods command.
 	case message.ListPods:
 		m.pods = msgT.PodList.Items
 		podColumns, podRows := podTableContents(m.pods)
@@ -360,15 +362,19 @@ func (m Model) podSelectionUpdate(msg tea.Msg) (Model, tea.Cmd) {
 		m.currentPod = *msgT.Pod
 		return m, m.podView.Init()
 
+	// When the user tries to delete a pod we create a new confirmation dialog and move to the CONFIRM_POD_DELETION state which will
+	// display the dialog and handle the choice.
 	case columntable.Deletion:
 		dialog := confirm.New([]confirm.Button{{Desc: "Yes", Id: msgT.Id}, {Desc: "No", Id: msgT.Id}}, fmt.Sprintf("Are you sure you want to delete %s", msgT.Id))
 		m.activeDialog = &dialog
 		m = m.updateState(CONFIRM_POD_DELETION)
 		return m, nil
 
+	// When a pod is actually deleted we refresh the pod list by returning the listPods command.
 	case message.PodDeleted:
 		return m, m.listPods
 
+	// Refresh the pod list.
 	case tea.KeyMsg:
 		if key.Matches(msgT, m.keys.refreshPodList) {
 			return m, m.listPods
@@ -416,6 +422,7 @@ func (m Model) confirmPodDeletionUpdate(msg tea.Msg) (Model, tea.Cmd) {
 	return m, cmd
 }
 
+// headerView builds a view containing basic help information and a status bar for some states.
 func (m Model) headerView() string {
 	builder := strings.Builder{}
 	helpView := m.help.ShortHelpView(m.ShortHelp())

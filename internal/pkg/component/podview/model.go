@@ -84,6 +84,7 @@ const (
 	LOGS
 )
 
+// stringToSelectedView maps a string to a view.
 var stringToSelectedView = map[string]view{
 	STATUS.String():      STATUS,
 	ANNOTATIONS.String(): ANNOTATIONS,
@@ -92,6 +93,7 @@ var stringToSelectedView = map[string]view{
 	LOGS.String():        LOGS,
 }
 
+// String implements the stringer interface for view.
 func (s view) String() string {
 	switch s {
 	case STATUS:
@@ -128,20 +130,7 @@ func New(pod k8s.Pod, verticalMargin, windowWidth, windowHeight int) Model {
 // A parent component should call this if its content height prior to this components view changes.
 func (pv Model) SetVerticalMargin(verticalMargin int) Model {
 	pv.verticalMargin = verticalMargin
-	return pv
-}
-
-// SetWindowWidth sets a new window width value for the podview.
-func (pv Model) SetWindowWidth(width int) Model {
-	pv.windowWidth = width
-	pv.viewPort.Width = pv.windowWidth
-	return pv
-}
-
-// SetWindowHeight sets a new window height value for the podview.
-func (pv Model) SetWindowHeight(height int) Model {
-	pv.windowWidth = height
-	pv.viewPort.Height = pv.windowHeight - pv.calculateViewportOfset()
+	pv = pv.updateViewport()
 	return pv
 }
 
@@ -154,7 +143,6 @@ func (pv Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		pv.windowHeight = msg.Height
 	// Is it a key press?
 	case tea.KeyMsg:
-		// Cool, what was the actual key pressed?
 		switch {
 		// The "left" key move the cursor left
 		case key.Matches(msg, pv.keys.Left):
@@ -177,14 +165,20 @@ func (pv Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	}
 
 	// Update the width, content and height of the viewport.
-	pv.viewPort.Width = pv.windowWidth
-	pv.viewPort.SetContent(pv.viewPortContent())
-	pv.viewPort.Height = pv.windowHeight - pv.calculateViewportOfset()
+	pv = pv.updateViewport()
 	pv.viewPort, _ = pv.viewPort.Update(msg)
 
 	return pv, nil
 }
 
+func (pv Model) updateViewport() Model {
+	pv.viewPort.Width = pv.windowWidth
+	pv.viewPort.SetContent(pv.viewPortContent())
+	pv.viewPort.Height = pv.windowHeight - pv.calculateViewportOfset()
+	return pv
+}
+
+// viewPortContent produces the content of the viewPort given the current state of the model.
 func (pv Model) viewPortContent() string {
 	switch pv.view {
 	case STATUS:
@@ -201,14 +195,18 @@ func (pv Model) viewPortContent() string {
 	return ""
 }
 
+// calculateViewportOfSet calculates the amount of space occupied by other components/views so that the viewPort can occupy the rest of the space.
 func (pv Model) calculateViewportOfset() int {
 	return lipgloss.Height(pv.tableHeaderView()) + lipgloss.Height(pv.tabsView()) + lipgloss.Height(pv.footerView()) + pv.verticalMargin
 }
 
+// tabsView builds the tab select view.
 func (pv Model) tabsView() string {
 	return kubeui.TabsSelect(pv.cursor, pv.windowWidth, pv.views) + "\n\n"
 }
 
+// tableHeaderView creates the table header view.
+// Producing table headers seperately from the rows allows us to let the content scroll past the headers without hiding them.
 func (pv Model) tableHeaderView() string {
 
 	var columns []*kubeui.DataColumn
@@ -227,6 +225,7 @@ func (pv Model) tableHeaderView() string {
 	return lipgloss.NewStyle().Width(pv.windowWidth).Render(kubeui.ColumnsString(columns)) + "\n" + lipgloss.JoinHorizontal(lipgloss.Center, line) + "\n\n"
 }
 
+// footerView creates the footerView which contains information about how far the user has scrolled through the viewPort.
 func (pv Model) footerView() string {
 
 	info := fmt.Sprintf("%3.f%%", pv.viewPort.ScrollPercent()*100) // infoStyle.Render()

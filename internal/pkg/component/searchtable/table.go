@@ -68,12 +68,12 @@ func newKeyMap(itemName string) *KeyMap {
 
 	return &KeyMap{
 		Search: key.NewBinding(
-			key.WithKeys("ctrl+s", "cmd+f", "ctrl+f"),
-			key.WithHelp("ctrl+s,cmd+f,ctrl+f", "Enter search mode"),
+			key.WithKeys("ctrl+s", "ctrl+f"),
+			key.WithHelp("ctrl+s,ctrl+f", "Enter search mode"),
 		),
 		ExitSearch: key.NewBinding(
-			key.WithKeys("ctrl+s", "cmd+f", "enter", "esc", "down"),
-			key.WithHelp("ctrl+s,cmd+f,enter,esc,down", "Exit search mode"),
+			key.WithKeys("ctrl+s", "ctrl+f", "enter", "esc", "down"),
+			key.WithHelp("ctrl+s,ctrl+f,enter,esc,down", "Exit search mode"),
 		),
 		Up: key.NewBinding(
 			key.WithKeys("up"),
