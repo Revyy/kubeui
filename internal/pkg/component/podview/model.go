@@ -1,6 +1,7 @@
 package podview
 
 import (
+	"fmt"
 	"kubeui/internal/pkg/k8s"
 	"kubeui/internal/pkg/kubeui"
 	"strings"
@@ -9,12 +10,27 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"k8s.io/utils/integer"
 )
 
 // TODO: Make podview standalone with what it renders including status bar and help text, alternatively figure out how to pass in vertical margin.
 // TODO: Make all views use the viewport, just update the content of it.
 // TODO: Update viewport height and width when the window height changes.
 // TODO: Collect everything pre-content in its own view, perhaps pass in the header-view from the parent to this component so we can calculate the height.
+
+var (
+	titleStyle = func() lipgloss.Style {
+		b := lipgloss.RoundedBorder()
+		b.Right = "├"
+		return lipgloss.NewStyle().BorderStyle(b).Padding(0, 1)
+	}()
+
+	infoStyle = func() lipgloss.Style {
+		b := lipgloss.RoundedBorder()
+		b.Left = "┤"
+		return titleStyle.Copy().BorderStyle(b)
+	}()
+)
 
 // keyMap defines the key bindings for the PodView.
 type keyMap struct {
@@ -113,7 +129,7 @@ func New(pod k8s.Pod, verticalMargin, windowWidth, windowHeight int) Model {
 		views:          []string{STATUS.String(), ANNOTATIONS.String(), LABELS.String(), EVENTS.String()},
 	}
 
-	model.viewPort = viewport.New(windowWidth, windowHeight-model.calculateViewportOffest())
+	model.viewPort = viewport.New(windowWidth, windowHeight-model.calculateViewportOfset())
 	model.viewPort.SetContent(model.viewPortContent())
 	return model
 }
@@ -167,7 +183,7 @@ func (pv Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	}
 
 	pv.viewPort.SetContent(pv.viewPortContent())
-	pv.viewPort.Height = pv.windowHeight - pv.calculateViewportOffest()
+	pv.viewPort.Height = pv.windowHeight - pv.calculateViewportOfset()
 	pv.viewPort, _ = pv.viewPort.Update(msg)
 
 	return pv, nil
@@ -189,8 +205,8 @@ func (pv Model) viewPortContent() string {
 	return ""
 }
 
-func (pv Model) calculateViewportOffest() int {
-	return lipgloss.Height(pv.tableHeaderView()) + lipgloss.Height(pv.tabsView()) + pv.verticalMargin
+func (pv Model) calculateViewportOfset() int {
+	return lipgloss.Height(pv.tableHeaderView()) + lipgloss.Height(pv.tabsView()) + lipgloss.Height(pv.footerView()) + pv.verticalMargin
 }
 
 func (pv Model) tabsView() string {
@@ -210,7 +226,17 @@ func (pv Model) tableHeaderView() string {
 	case EVENTS:
 		columns, _ = kubeui.EventsTable(pv.pod.Events)
 	}
-	return lipgloss.NewStyle().Width(pv.windowWidth).Underline(true).Render(kubeui.ColumnsString(columns)) + "\n\n"
+
+	line := strings.Repeat("─", pv.viewPort.Width)
+	return lipgloss.NewStyle().Width(pv.windowWidth).Render(kubeui.ColumnsString(columns)) + "\n" + lipgloss.JoinHorizontal(lipgloss.Center, line) + "\n\n"
+}
+
+func (pv Model) footerView() string {
+
+	info := infoStyle.Render(fmt.Sprintf("%3.f%%", pv.viewPort.ScrollPercent()*100))
+	line := strings.Repeat("─", integer.IntMax(0, pv.viewPort.Width-lipgloss.Width(info)))
+	return lipgloss.JoinHorizontal(lipgloss.Center, line, info)
+
 }
 
 // View returns the view for the model.
@@ -221,6 +247,10 @@ func (pv Model) View() string {
 	builder.WriteString(pv.tabsView())
 	builder.WriteString(pv.tableHeaderView())
 	builder.WriteString(pv.viewPort.View())
+
+	if pv.view != STATUS {
+		builder.WriteString(pv.footerView())
+	}
 
 	return builder.String()
 }
