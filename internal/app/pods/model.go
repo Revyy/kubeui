@@ -395,6 +395,13 @@ func (m Model) podViewUpdate(msg tea.Msg) (Model, tea.Cmd) {
 			m = m.updateState(POD_SELECTION)
 			return m, m.listPods
 		}
+	case podview.Refresh:
+		return m, m.getPod(msgT.PodName)
+	case message.GetPod:
+		var cmd tea.Cmd
+		m.podView, cmd = m.podView.Update(podview.NewPod{Pod: *msgT.Pod})
+		m.currentPod = *msgT.Pod
+		return m, cmd
 	}
 
 	var cmd tea.Cmd

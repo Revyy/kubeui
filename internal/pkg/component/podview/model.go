@@ -15,8 +15,9 @@ import (
 
 // keyMap defines the key bindings for the PodView.
 type keyMap struct {
-	Left  key.Binding
-	Right key.Binding
+	Left    key.Binding
+	Right   key.Binding
+	Refresh key.Binding
 }
 
 // newKeyMap creates a new KeyMap.
@@ -31,7 +32,23 @@ func newKeyMap() *keyMap {
 			key.WithKeys("right"),
 			key.WithHelp("right", "Move cursor right one position"),
 		),
+		Refresh: key.NewBinding(
+			key.WithKeys("ctrl+r"),
+			key.WithHelp("ctrl+r", "Refresh pod information"),
+		),
 	}
+}
+
+// Refresh signals that the data for the pod should be refreshed.
+type Refresh struct {
+	// Name of the pod.
+	PodName string
+}
+
+// NewPod contains a new pod to replace the old one, most likely it is an updated version of the same pod.
+type NewPod struct {
+	// New pod
+	Pod k8s.Pod
 }
 
 // Model defines a component that can view and query different parts of a kubernetes pod.
@@ -55,6 +72,7 @@ func (pv Model) KeyList() []key.Binding {
 	viewPortKeys := viewport.DefaultKeyMap()
 
 	keyList := []key.Binding{
+		pv.keys.Refresh,
 		pv.keys.Left,
 		pv.keys.Right,
 		viewPortKeys.Up,
@@ -118,7 +136,7 @@ func New(pod k8s.Pod, verticalMargin, windowWidth, windowHeight int) Model {
 		windowHeight:   windowHeight,
 		verticalMargin: verticalMargin,
 		pod:            pod,
-		views:          []string{STATUS.String(), ANNOTATIONS.String(), LABELS.String(), EVENTS.String()},
+		views:          []string{STATUS.String(), ANNOTATIONS.String(), LABELS.String(), EVENTS.String(), LOGS.String()},
 	}
 
 	model.viewPort = viewport.New(windowWidth, windowHeight-model.calculateViewportOfset())
@@ -161,12 +179,26 @@ func (pv Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				pv.cursor = 0
 			}
 			pv.view = stringToSelectedView[pv.views[pv.cursor]]
+		case key.Matches(msg, pv.keys.Refresh):
+			return pv, func() tea.Msg {
+				return Refresh{
+					PodName: pv.pod.Pod.GetName(),
+				}
+			}
+		default:
+			pv.viewPort, _ = pv.viewPort.Update(msg)
+			return pv, nil
 		}
+	case NewPod:
+		pv.pod = msg.Pod
 	}
 
 	// Update the width, content and height of the viewport.
 	pv = pv.updateViewport()
-	pv.viewPort, _ = pv.viewPort.Update(msg)
+
+	if pv.view == LOGS {
+		pv.viewPort.GotoBottom()
+	}
 
 	return pv, nil
 }
@@ -175,6 +207,7 @@ func (pv Model) updateViewport() Model {
 	pv.viewPort.Width = pv.windowWidth
 	pv.viewPort.SetContent(pv.viewPortContent())
 	pv.viewPort.Height = pv.windowHeight - pv.calculateViewportOfset()
+
 	return pv
 }
 
@@ -190,6 +223,8 @@ func (pv Model) viewPortContent() string {
 		return kubeui.RowsString(kubeui.StringMapTable("Key", "Value", pv.pod.Pod.Labels))
 	case EVENTS:
 		return kubeui.RowsString(kubeui.EventsTable(pv.viewPort.Width, pv.pod.Events))
+	case LOGS:
+		return kubeui.LineBreak(pv.pod.Logs, pv.viewPort.Width)
 	}
 
 	return ""
@@ -219,6 +254,8 @@ func (pv Model) tableHeaderView() string {
 		columns, _ = kubeui.StringMapTable("Key", "Value", pv.pod.Pod.Labels)
 	case EVENTS:
 		columns, _ = kubeui.EventsTable(pv.viewPort.Width, pv.pod.Events)
+	case LOGS:
+		return strings.Repeat("─", pv.viewPort.Width) + "\n"
 	}
 
 	line := strings.Repeat("─", pv.viewPort.Width)

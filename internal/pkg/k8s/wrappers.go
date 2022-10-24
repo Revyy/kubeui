@@ -6,4 +6,5 @@ import v1 "k8s.io/api/core/v1"
 type Pod struct {
 	Pod    v1.Pod
 	Events []v1.Event
+	Logs   string
 }
