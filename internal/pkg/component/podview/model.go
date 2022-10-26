@@ -1,15 +1,19 @@
 package podview
 
 import (
+	"encoding/json"
 	"fmt"
 	"kubeui/internal/pkg/k8s"
 	"kubeui/internal/pkg/kubeui"
 	"strings"
 
+	"github.com/TylerBrock/colorjson"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/fatih/color"
+	"github.com/life4/genesis/slices"
 	"k8s.io/utils/integer"
 )
 
@@ -64,6 +68,7 @@ type Model struct {
 	windowWidth    int
 	windowHeight   int
 	pod            k8s.Pod
+	jsonLogLines   []string
 }
 
 // Returns a list of keybindings to be used in help text.
@@ -141,7 +146,37 @@ func New(pod k8s.Pod, verticalMargin, windowWidth, windowHeight int) Model {
 
 	model.viewPort = viewport.New(windowWidth, windowHeight-model.calculateViewportOfset())
 	model.viewPort.SetContent(model.viewPortContent())
+
+	model.jsonLogLines = buildJSONLines(windowWidth, model.pod.Logs)
+
 	return model
+}
+
+func buildJSONLines(maxWidth int, jsonStr string) []string {
+
+	formatter := colorjson.NewFormatter()
+	formatter.StringColor = color.New(color.FgMagenta)
+
+	widthStyle := lipgloss.NewStyle().Width(maxWidth)
+
+	return slices.Filter(slices.Map(strings.Split(jsonStr, "\n"), func(str string) string {
+		var obj map[string]interface{}
+		err := json.Unmarshal([]byte(str), &obj)
+		if err != nil {
+			return ""
+		}
+
+		s, err := formatter.Marshal(obj)
+
+		if err != nil {
+			return ""
+		}
+
+		return widthStyle.Render(string(s))
+	}), func(s string) bool {
+		return len(s) > 0
+	})
+
 }
 
 // SetVerticalMargin sets a new vertical margin, this is used to calculate the height of the viewport.
@@ -189,8 +224,12 @@ func (pv Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			pv.viewPort, _ = pv.viewPort.Update(msg)
 			return pv, nil
 		}
+	case tea.MouseMsg:
+		pv.viewPort, _ = pv.viewPort.Update(msg)
+		return pv, nil
 	case NewPod:
 		pv.pod = msg.Pod
+		pv.jsonLogLines = buildJSONLines(pv.windowWidth, pv.pod.Logs)
 	}
 
 	// Update the width, content and height of the viewport.
@@ -224,7 +263,7 @@ func (pv Model) viewPortContent() string {
 	case EVENTS:
 		return kubeui.RowsString(kubeui.EventsTable(pv.viewPort.Width, pv.pod.Events))
 	case LOGS:
-		return kubeui.LineBreak(pv.pod.Logs, pv.viewPort.Width)
+		return strings.Join(pv.jsonLogLines, "\n")
 	}
 
 	return ""
