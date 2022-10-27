@@ -14,6 +14,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/fatih/color"
 	"github.com/life4/genesis/slices"
+	"github.com/muesli/reflow/wrap"
 	"k8s.io/utils/integer"
 )
 
@@ -62,13 +63,15 @@ type Model struct {
 	views  []string
 	view   view
 
-	viewPort viewport.Model
+	annotationsViewPort viewport.Model
+	labelsViewPort      viewport.Model
+	eventsViewPort      viewport.Model
+	logsViewPort        viewport.Model
 
 	verticalMargin int
 	windowWidth    int
 	windowHeight   int
 	pod            k8s.Pod
-	jsonLogLines   []string
 }
 
 // Returns a list of keybindings to be used in help text.
@@ -144,10 +147,21 @@ func New(pod k8s.Pod, verticalMargin, windowWidth, windowHeight int) Model {
 		views:          []string{STATUS.String(), ANNOTATIONS.String(), LABELS.String(), EVENTS.String(), LOGS.String()},
 	}
 
-	model.viewPort = viewport.New(windowWidth, windowHeight-model.calculateViewportOfset())
-	model.viewPort.SetContent(model.viewPortContent())
+	model = model.updateViewportSizes()
+	model = model.updateViewportContents()
 
-	model.jsonLogLines = buildJSONLines(windowWidth, model.pod.Logs)
+	// model.annotationsViewPort = viewport.New(windowWidth, windowHeight-model.calculateViewportOfset(ANNOTATIONS))
+	// model.annotationsViewPort.SetContent(kubeui.RowsString(kubeui.StringMapTable("Key", "Value", model.pod.Pod.Annotations)))
+
+	// model.labelsViewPort = viewport.New(windowWidth, windowHeight-model.calculateViewportOfset(LABELS))
+	// model.labelsViewPort.SetContent(kubeui.RowsString(kubeui.StringMapTable("Key", "Value", model.pod.Pod.Labels)))
+
+	// model.eventsViewPort = viewport.New(windowWidth, windowHeight-model.calculateViewportOfset(EVENTS))
+	// model.eventsViewPort.SetContent(kubeui.RowsString(kubeui.EventsTable(model.windowWidth, model.pod.Events)))
+
+	// model.logsViewPort = viewport.New(windowWidth, windowHeight-model.calculateViewportOfset(LOGS))
+	// model.logsViewPort.SetContent(strings.Join(buildJSONLines(windowWidth, model.pod.Logs), "\n"))
+	// model.logsViewPort.GotoBottom()
 
 	return model
 }
@@ -156,8 +170,6 @@ func buildJSONLines(maxWidth int, jsonStr string) []string {
 
 	formatter := colorjson.NewFormatter()
 	formatter.StringColor = color.New(color.FgMagenta)
-
-	widthStyle := lipgloss.NewStyle().Width(maxWidth)
 
 	return slices.Filter(slices.Map(strings.Split(jsonStr, "\n"), func(str string) string {
 		var obj map[string]interface{}
@@ -172,7 +184,7 @@ func buildJSONLines(maxWidth int, jsonStr string) []string {
 			return ""
 		}
 
-		return widthStyle.Render(string(s))
+		return wrap.String(string(s), maxWidth)
 	}), func(s string) bool {
 		return len(s) > 0
 	})
@@ -183,7 +195,34 @@ func buildJSONLines(maxWidth int, jsonStr string) []string {
 // A parent component should call this if its content height prior to this components view changes.
 func (pv Model) SetVerticalMargin(verticalMargin int) Model {
 	pv.verticalMargin = verticalMargin
-	pv = pv.updateViewport()
+	pv = pv.updateViewportSizes()
+	return pv
+}
+
+func (pv Model) updateViewportSizes() Model {
+	pv.annotationsViewPort.Width = pv.windowWidth
+	pv.annotationsViewPort.Height = pv.windowHeight - pv.calculateViewportOfset(ANNOTATIONS)
+
+	pv.labelsViewPort.Width = pv.windowWidth
+	pv.labelsViewPort.Height = pv.windowHeight - pv.calculateViewportOfset(LABELS)
+
+	pv.eventsViewPort.Width = pv.windowWidth
+	pv.eventsViewPort.Height = pv.windowHeight - pv.calculateViewportOfset(EVENTS)
+
+	pv.logsViewPort.Width = pv.windowWidth
+	pv.logsViewPort.Height = pv.windowHeight - pv.calculateViewportOfset(LOGS)
+
+	return pv
+}
+
+func (pv Model) updateViewportContents() Model {
+	pv.annotationsViewPort.SetContent(kubeui.RowsString(kubeui.StringMapTable("Key", "Value", pv.pod.Pod.Annotations)))
+	pv.labelsViewPort.SetContent(kubeui.RowsString(kubeui.StringMapTable("Key", "Value", pv.pod.Pod.Labels)))
+	pv.eventsViewPort.SetContent(kubeui.RowsString(kubeui.EventsTable(pv.windowWidth, pv.pod.Events)))
+
+	pv.logsViewPort.SetContent(strings.Join(buildJSONLines(pv.windowWidth, pv.pod.Logs), "\n"))
+	pv.logsViewPort.GotoBottom()
+
 	return pv
 }
 
@@ -192,8 +231,12 @@ func (pv Model) SetVerticalMargin(verticalMargin int) Model {
 func (pv Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
+		// TODO: update viewports.
 		pv.windowWidth = msg.Width
 		pv.windowHeight = msg.Height
+		pv = pv.updateViewportSizes()
+		return pv, nil
+
 	// Is it a key press?
 	case tea.KeyMsg:
 		switch {
@@ -205,6 +248,7 @@ func (pv Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				pv.cursor = len(pv.views) - 1
 			}
 			pv.view = stringToSelectedView[pv.views[pv.cursor]]
+			return pv, nil
 
 		// The "right" key move the cursor right
 		case key.Matches(msg, pv.keys.Right):
@@ -214,64 +258,41 @@ func (pv Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				pv.cursor = 0
 			}
 			pv.view = stringToSelectedView[pv.views[pv.cursor]]
+			return pv, nil
+
 		case key.Matches(msg, pv.keys.Refresh):
 			return pv, func() tea.Msg {
 				return Refresh{
 					PodName: pv.pod.Pod.GetName(),
 				}
 			}
-		default:
-			pv.viewPort, _ = pv.viewPort.Update(msg)
-			return pv, nil
 		}
-	case tea.MouseMsg:
-		pv.viewPort, _ = pv.viewPort.Update(msg)
-		return pv, nil
 	case NewPod:
+		// TODO: Set content of viewports again.
 		pv.pod = msg.Pod
-		pv.jsonLogLines = buildJSONLines(pv.windowWidth, pv.pod.Logs)
+		pv = pv.updateViewportContents()
+		return pv, nil
 	}
 
-	// Update the width, content and height of the viewport.
-	pv = pv.updateViewport()
+	var cmd tea.Cmd
 
-	if pv.view == LOGS {
-		pv.viewPort.GotoBottom()
-	}
-
-	return pv, nil
-}
-
-func (pv Model) updateViewport() Model {
-	pv.viewPort.Width = pv.windowWidth
-	pv.viewPort.SetContent(pv.viewPortContent())
-	pv.viewPort.Height = pv.windowHeight - pv.calculateViewportOfset()
-
-	return pv
-}
-
-// viewPortContent produces the content of the viewPort given the current state of the model.
-func (pv Model) viewPortContent() string {
 	switch pv.view {
-	case STATUS:
-		columns, row := kubeui.PodStatusTable(pv.pod.Pod)
-		return kubeui.RowsString(columns, []*kubeui.DataRow{row})
 	case ANNOTATIONS:
-		return kubeui.RowsString(kubeui.StringMapTable("Key", "Value", pv.pod.Pod.Annotations))
+		pv.annotationsViewPort, cmd = pv.annotationsViewPort.Update(msg)
 	case LABELS:
-		return kubeui.RowsString(kubeui.StringMapTable("Key", "Value", pv.pod.Pod.Labels))
+		pv.labelsViewPort, cmd = pv.labelsViewPort.Update(msg)
 	case EVENTS:
-		return kubeui.RowsString(kubeui.EventsTable(pv.viewPort.Width, pv.pod.Events))
+		pv.eventsViewPort, cmd = pv.eventsViewPort.Update(msg)
 	case LOGS:
-		return strings.Join(pv.jsonLogLines, "\n")
+		pv.logsViewPort, cmd = pv.logsViewPort.Update(msg)
 	}
 
-	return ""
+	return pv, cmd
 }
 
 // calculateViewportOfSet calculates the amount of space occupied by other components/views so that the viewPort can occupy the rest of the space.
-func (pv Model) calculateViewportOfset() int {
-	return lipgloss.Height(pv.tableHeaderView()) + lipgloss.Height(pv.tabsView()) + lipgloss.Height(pv.footerView()) + pv.verticalMargin
+func (pv Model) calculateViewportOfset(v view) int {
+	return lipgloss.Height(pv.tableHeaderView(v)) + lipgloss.Height(pv.tabsView()) + lipgloss.Height(pv.footerView()) + pv.verticalMargin
 }
 
 // tabsView builds the tab select view.
@@ -281,10 +302,10 @@ func (pv Model) tabsView() string {
 
 // tableHeaderView creates the table header view.
 // Producing table headers seperately from the rows allows us to let the content scroll past the headers without hiding them.
-func (pv Model) tableHeaderView() string {
+func (pv Model) tableHeaderView(v view) string {
 
 	var columns []*kubeui.DataColumn
-	switch pv.view {
+	switch v {
 	case STATUS:
 		columns, _ = kubeui.PodStatusTable(pv.pod.Pod)
 	case ANNOTATIONS:
@@ -292,20 +313,32 @@ func (pv Model) tableHeaderView() string {
 	case LABELS:
 		columns, _ = kubeui.StringMapTable("Key", "Value", pv.pod.Pod.Labels)
 	case EVENTS:
-		columns, _ = kubeui.EventsTable(pv.viewPort.Width, pv.pod.Events)
+		columns, _ = kubeui.EventsTable(pv.eventsViewPort.Width, pv.pod.Events)
 	case LOGS:
-		return strings.Repeat("─", pv.viewPort.Width) + "\n"
+		return strings.Repeat("─", pv.logsViewPort.Width) + "\n"
 	}
 
-	line := strings.Repeat("─", pv.viewPort.Width)
+	line := strings.Repeat("─", pv.windowWidth)
 	return lipgloss.NewStyle().Width(pv.windowWidth).Render(kubeui.ColumnsString(columns)) + "\n" + lipgloss.JoinHorizontal(lipgloss.Center, line) + "\n\n"
 }
 
 // footerView creates the footerView which contains information about how far the user has scrolled through the viewPort.
 func (pv Model) footerView() string {
 
-	info := fmt.Sprintf("%3.f%%", pv.viewPort.ScrollPercent()*100) // infoStyle.Render()
-	line := strings.Repeat("─", integer.IntMax(0, pv.viewPort.Width-lipgloss.Width(info)))
+	var info string
+
+	switch pv.view {
+	case ANNOTATIONS:
+		info = fmt.Sprintf("%3.f%%", pv.annotationsViewPort.ScrollPercent()*100)
+	case LABELS:
+		info = fmt.Sprintf("%3.f%%", pv.labelsViewPort.ScrollPercent()*100)
+	case EVENTS:
+		info = fmt.Sprintf("%3.f%%", pv.eventsViewPort.ScrollPercent()*100)
+	case LOGS:
+		info = fmt.Sprintf("%3.f%%", pv.logsViewPort.ScrollPercent()*100)
+	}
+
+	line := strings.Repeat("─", integer.IntMax(0, pv.windowWidth-lipgloss.Width(info)))
 	return "\n" + lipgloss.JoinHorizontal(lipgloss.Center, line, info)
 }
 
@@ -315,9 +348,23 @@ func (pv Model) View() string {
 
 	var builder strings.Builder
 	builder.WriteString(pv.tabsView())
-	builder.WriteString(pv.tableHeaderView())
-	builder.WriteString(pv.viewPort.View())
+	builder.WriteString(pv.tableHeaderView(pv.view))
 
+	switch pv.view {
+	case STATUS:
+		columns, row := kubeui.PodStatusTable(pv.pod.Pod)
+		builder.WriteString(kubeui.RowsString(columns, []*kubeui.DataRow{row}))
+	case ANNOTATIONS:
+		builder.WriteString(pv.annotationsViewPort.View())
+	case LABELS:
+		builder.WriteString(pv.labelsViewPort.View())
+	case EVENTS:
+		builder.WriteString(pv.eventsViewPort.View())
+	case LOGS:
+		builder.WriteString(pv.logsViewPort.View())
+	}
+
+	// STATUS does not have a footer.
 	if pv.view != STATUS {
 		builder.WriteString(pv.footerView())
 	}
@@ -327,6 +374,6 @@ func (pv Model) View() string {
 
 // Init returns an initial command.
 // It is part of the bubbletea model interface.
-func (n Model) Init() tea.Cmd {
+func (pv Model) Init() tea.Cmd {
 	return nil
 }
