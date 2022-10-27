@@ -12,7 +12,6 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/fatih/color"
 	"github.com/life4/genesis/slices"
 	"github.com/muesli/reflow/wrap"
 	"k8s.io/utils/integer"
@@ -150,26 +149,12 @@ func New(pod k8s.Pod, verticalMargin, windowWidth, windowHeight int) Model {
 	model = model.updateViewportSizes()
 	model = model.updateViewportContents()
 
-	// model.annotationsViewPort = viewport.New(windowWidth, windowHeight-model.calculateViewportOfset(ANNOTATIONS))
-	// model.annotationsViewPort.SetContent(kubeui.RowsString(kubeui.StringMapTable("Key", "Value", model.pod.Pod.Annotations)))
-
-	// model.labelsViewPort = viewport.New(windowWidth, windowHeight-model.calculateViewportOfset(LABELS))
-	// model.labelsViewPort.SetContent(kubeui.RowsString(kubeui.StringMapTable("Key", "Value", model.pod.Pod.Labels)))
-
-	// model.eventsViewPort = viewport.New(windowWidth, windowHeight-model.calculateViewportOfset(EVENTS))
-	// model.eventsViewPort.SetContent(kubeui.RowsString(kubeui.EventsTable(model.windowWidth, model.pod.Events)))
-
-	// model.logsViewPort = viewport.New(windowWidth, windowHeight-model.calculateViewportOfset(LOGS))
-	// model.logsViewPort.SetContent(strings.Join(buildJSONLines(windowWidth, model.pod.Logs), "\n"))
-	// model.logsViewPort.GotoBottom()
-
 	return model
 }
 
 func buildJSONLines(maxWidth int, jsonStr string) []string {
 
 	formatter := colorjson.NewFormatter()
-	formatter.StringColor = color.New(color.FgMagenta)
 
 	return slices.Filter(slices.Map(strings.Split(jsonStr, "\n"), func(str string) string {
 		var obj map[string]interface{}
@@ -216,11 +201,11 @@ func (pv Model) updateViewportSizes() Model {
 }
 
 func (pv Model) updateViewportContents() Model {
-	pv.annotationsViewPort.SetContent(kubeui.RowsString(kubeui.StringMapTable("Key", "Value", pv.pod.Pod.Annotations)))
-	pv.labelsViewPort.SetContent(kubeui.RowsString(kubeui.StringMapTable("Key", "Value", pv.pod.Pod.Labels)))
+	pv.annotationsViewPort.SetContent(kubeui.RowsString(kubeui.StringMapTable(pv.windowWidth, "Key", "Value", pv.pod.Pod.Annotations)))
+	pv.labelsViewPort.SetContent(kubeui.RowsString(kubeui.StringMapTable(pv.windowWidth, "Key", "Value", pv.pod.Pod.Labels)))
 	pv.eventsViewPort.SetContent(kubeui.RowsString(kubeui.EventsTable(pv.windowWidth, pv.pod.Events)))
 
-	pv.logsViewPort.SetContent(strings.Join(buildJSONLines(pv.windowWidth, pv.pod.Logs), "\n"))
+	pv.logsViewPort.SetContent(strings.Join(buildJSONLines(pv.windowWidth, pv.pod.Logs), "\n\n"))
 	pv.logsViewPort.GotoBottom()
 
 	return pv
@@ -235,6 +220,7 @@ func (pv Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		pv.windowWidth = msg.Width
 		pv.windowHeight = msg.Height
 		pv = pv.updateViewportSizes()
+		pv = pv.updateViewportContents()
 		return pv, nil
 
 	// Is it a key press?
@@ -309,9 +295,9 @@ func (pv Model) tableHeaderView(v view) string {
 	case STATUS:
 		columns, _ = kubeui.PodStatusTable(pv.pod.Pod)
 	case ANNOTATIONS:
-		columns, _ = kubeui.StringMapTable("Key", "Value", pv.pod.Pod.Annotations)
+		columns, _ = kubeui.StringMapTable(pv.windowWidth, "Key", "Value", pv.pod.Pod.Annotations)
 	case LABELS:
-		columns, _ = kubeui.StringMapTable("Key", "Value", pv.pod.Pod.Labels)
+		columns, _ = kubeui.StringMapTable(pv.windowWidth, "Key", "Value", pv.pod.Pod.Labels)
 	case EVENTS:
 		columns, _ = kubeui.EventsTable(pv.eventsViewPort.Width, pv.pod.Events)
 	case LOGS:

@@ -156,7 +156,7 @@ func PodStatusTable(pod v1.Pod) ([]*DataColumn, *DataRow) {
 }
 
 // StringMapTable creates the neccessary columns and rows in order to display a map[string]string as a table.
-func StringMapTable(col1 string, col2 string, data map[string]string) ([]*DataColumn, []*DataRow) {
+func StringMapTable(maxWidth int, col1 string, col2 string, data map[string]string) ([]*DataColumn, []*DataRow) {
 
 	columns := []*DataColumn{
 		{desc: col1, width: len(col1)},
@@ -173,7 +173,9 @@ func StringMapTable(col1 string, col2 string, data map[string]string) ([]*DataCo
 		value := data[key]
 		// Update widths of the columns
 		columns[0].width = integer.IntMax(columns[0].width, len(key))
-		columns[1].width = integer.IntMax(columns[1].width, len(value))
+
+		remainingWidth := maxWidth - columns[0].width
+		columns[1].width = integer.IntMax(remainingWidth-1, len(value))
 
 		rows = append(rows, &DataRow{
 			values: []string{key, value},
