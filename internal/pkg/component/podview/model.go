@@ -160,13 +160,13 @@ func buildJSONLines(maxWidth int, jsonStr string) []string {
 		var obj map[string]interface{}
 		err := json.Unmarshal([]byte(str), &obj)
 		if err != nil {
-			return ""
+			return wrap.String(str, maxWidth)
 		}
 
 		s, err := formatter.Marshal(obj)
 
 		if err != nil {
-			return ""
+			return wrap.String(str, maxWidth)
 		}
 
 		return wrap.String(string(s), maxWidth)
@@ -254,7 +254,6 @@ func (pv Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			}
 		}
 	case NewPod:
-		// TODO: Set content of viewports again.
 		pv.pod = msg.Pod
 		pv = pv.updateViewportContents()
 		return pv, nil
