@@ -3,11 +3,11 @@ package podview
 import (
 	"encoding/json"
 	"fmt"
+	"kubeui/internal/pkg/jsoncolor"
 	"kubeui/internal/pkg/k8s"
 	"kubeui/internal/pkg/kubeui"
 	"strings"
 
-	"github.com/TylerBrock/colorjson"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -154,7 +154,7 @@ func New(pod k8s.Pod, verticalMargin, windowWidth, windowHeight int) Model {
 
 func buildJSONLines(maxWidth int, jsonStr string) []string {
 
-	formatter := colorjson.NewFormatter()
+	formatter := jsoncolor.NewFormatter()
 
 	return slices.Filter(slices.Map(strings.Split(jsonStr, "\n"), func(str string) string {
 		var obj map[string]interface{}

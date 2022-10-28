@@ -11,6 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 )
 
 // listNamespaces fetches all namespaces for the current context.
@@ -65,28 +66,43 @@ func (m Model) getPod(id string) tea.Cmd {
 			return fmt.Errorf("failed to get pod events: %v", err)
 		}
 
-		logsCtx, logsCancel := context.WithTimeout(context.Background(), 3*time.Second)
-		defer logsCancel()
+		logs := ""
 
-		tailLines := int64(100)
-		logsRequest := m.kubectl.CoreV1().Pods(m.currentNamespace).GetLogs(pod.Name, &v1.PodLogOptions{Container: pod.Status.ContainerStatuses[0].Name, TailLines: &tailLines})
-
-		podLogs, err := logsRequest.Stream(logsCtx)
+		if len(pod.Status.ContainerStatuses) > 0 {
+			logs, err = getLogs(m.kubectl, m.currentNamespace, pod.Name, pod.Status.ContainerStatuses[0].Name)
+		}
 
 		if err != nil {
 			return err
 		}
-		defer podLogs.Close()
 
-		buf := new(bytes.Buffer)
-		_, err = io.Copy(buf, podLogs)
-		if err != nil {
-			return err
-		}
-
-		return message.NewGetPod(pod, events.Items, buf.String())
+		return message.NewGetPod(pod, events.Items, logs)
 	}
 
+}
+
+func getLogs(kubectl *kubernetes.Clientset, namespace, podName, containerName string) (string, error) {
+
+	logsCtx, logsCancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer logsCancel()
+
+	tailLines := int64(100)
+	logsRequest := kubectl.CoreV1().Pods(namespace).GetLogs(podName, &v1.PodLogOptions{Container: containerName, TailLines: &tailLines})
+
+	podLogs, err := logsRequest.Stream(logsCtx)
+
+	if err != nil {
+		return "", err
+	}
+	defer podLogs.Close()
+
+	buf := new(bytes.Buffer)
+	_, err = io.Copy(buf, podLogs)
+	if err != nil {
+		return "", err
+	}
+
+	return buf.String(), nil
 }
 
 // deletePod deletes a pod in the current context and namespace.

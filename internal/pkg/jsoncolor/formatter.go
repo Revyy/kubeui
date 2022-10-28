@@ -1,3 +1,8 @@
+/* Code copied and changed from the colorjson library to work with lipgloss.
+* https://github.com/TylerBrock/colorjson
+* Attribution to Tyler Brock!
+ */
+
 package jsoncolor
 
 import (
@@ -23,24 +28,50 @@ const emptyMap = startMap + endMap
 const emptyArray = startArray + endArray
 
 type Formatter struct {
-	KeyColor        lipgloss.Color
-	StringColor     lipgloss.Color
-	BoolColor       lipgloss.Color
-	NumberColor     lipgloss.Color
-	NullColor       lipgloss.Color
+	ColorSet
 	StringMaxLength int
 	Indent          int
 	RawStrings      bool
 }
 
+type ColorSet struct {
+	KeyColor    lipgloss.Color
+	StringColor lipgloss.Color
+	BoolColor   lipgloss.Color
+	NumberColor lipgloss.Color
+	NullColor   lipgloss.Color
+}
+
+func defaultColorSet() ColorSet {
+	return ColorSet{
+		KeyColor:    lipgloss.Color("#ffffff"),
+		StringColor: lipgloss.Color("#438a34"),
+		BoolColor:   lipgloss.Color("#c4cc23"),
+		NumberColor: lipgloss.Color("#19d4ae"),
+		NullColor:   lipgloss.Color("#ba11a6"),
+	}
+}
+
+func lightColorSet() ColorSet {
+	return ColorSet{
+		KeyColor:    lipgloss.Color("#333333"),
+		StringColor: lipgloss.Color("#438a34"),
+		BoolColor:   lipgloss.Color("#c4cc23"),
+		NumberColor: lipgloss.Color("#19d4ae"),
+		NullColor:   lipgloss.Color("#ba11a6"),
+	}
+}
+
 func NewFormatter() *Formatter {
 
+	colorSet := defaultColorSet()
+
+	if !lipgloss.HasDarkBackground() {
+		colorSet = lightColorSet()
+	}
+
 	return &Formatter{
-		KeyColor:        lipgloss.Color("#ffffff"),
-		StringColor:     lipgloss.Color("#438a34"),
-		BoolColor:       lipgloss.Color("#c4cc23"),
-		NumberColor:     lipgloss.Color("#19d4ae"),
-		NullColor:       lipgloss.Color("#ba11a6"),
+		ColorSet:        colorSet,
 		StringMaxLength: 0,
 		Indent:          0,
 		RawStrings:      false,
@@ -58,10 +89,9 @@ func (f *Formatter) writeIndent(buf *bytes.Buffer, depth int) {
 func (f *Formatter) writeObjSep(buf *bytes.Buffer) {
 	if f.Indent != 0 {
 		buf.WriteByte('\n')
+	} else {
+		buf.WriteByte(' ')
 	}
-	// } else {
-	// 	buf.WriteByte(' ')
-	// }
 }
 
 func (f *Formatter) Marshal(jsonObj interface{}) ([]byte, error) {
