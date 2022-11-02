@@ -48,8 +48,8 @@ type ButtonPress struct {
 	Pressed Button
 }
 
-// Dialog defines a component use to confirm a choice.
-type Dialog struct {
+// Model defines a component use to confirm a choice.
+type Model struct {
 	keys    *KeyMap
 	cursor  int
 	buttons []Button
@@ -57,7 +57,7 @@ type Dialog struct {
 }
 
 // Returns a list of keybindings to be used in help text.
-func (d Dialog) KeyList() []key.Binding {
+func (d Model) KeyList() []key.Binding {
 	keyList := []key.Binding{
 		d.keys.Left,
 		d.keys.Right,
@@ -67,10 +67,10 @@ func (d Dialog) KeyList() []key.Binding {
 	return keyList
 }
 
-// New creates a new Dialog.
-func New(buttons []Button, text string) Dialog {
+// New creates a new Model.
+func New(buttons []Button, text string) Model {
 
-	return Dialog{
+	return Model{
 		keys:    newKeyMap(),
 		buttons: buttons,
 		cursor:  0,
@@ -80,7 +80,7 @@ func New(buttons []Button, text string) Dialog {
 
 // Update updates the model and optionally returns a command.
 // It is part of the bubbletea model interface.
-func (d Dialog) Update(msg tea.Msg) (Dialog, tea.Cmd) {
+func (d Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
@@ -110,7 +110,7 @@ func (d Dialog) Update(msg tea.Msg) (Dialog, tea.Cmd) {
 
 // View returns the view for the model.
 // It is part of the bubbletea model interface.
-func (d Dialog) View() string {
+func (d Model) View() string {
 	// The header
 	var dialogBuilder strings.Builder
 
@@ -133,6 +133,6 @@ func (d Dialog) View() string {
 
 // Init returns an initial command.
 // It is part of the bubbletea model interface.
-func (d Dialog) Init() tea.Cmd {
+func (d Model) Init() tea.Cmd {
 	return func() tea.Msg { return "" }
 }

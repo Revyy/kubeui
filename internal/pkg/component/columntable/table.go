@@ -70,12 +70,12 @@ func newKeyMap(itemName string) *KeyMap {
 
 	return &KeyMap{
 		Search: key.NewBinding(
-			key.WithKeys("ctrl+s", "cmd+f", "ctrl+f"),
-			key.WithHelp("ctrl+s,cmd+f,ctrl+f", "Enter search mode"),
+			key.WithKeys("ctrl+s", "ctrl+f"),
+			key.WithHelp("ctrl+s,ctrl+f", "Enter search mode"),
 		),
 		ExitSearch: key.NewBinding(
-			key.WithKeys("ctrl+s", "cmd+f", "enter", "esc", "down"),
-			key.WithHelp("ctrl+s,cmd+f,enter,esc,down", "Exit search mode"),
+			key.WithKeys("ctrl+s", "ctrl+f", "enter", "esc", "down"),
+			key.WithHelp("ctrl+s,ctrl+f,enter,esc,down", "Exit search mode"),
 		),
 		Up: key.NewBinding(
 			key.WithKeys("up"),
@@ -125,8 +125,8 @@ type Options struct {
 	StartInSearchMode bool
 }
 
-// ColumnTable defines a component use to display data in tabular format.
-type ColumnTable struct {
+// Model defines a component use to display data in tabular format.
+type Model struct {
 	keys   *KeyMap
 	cursor int
 
@@ -148,7 +148,7 @@ type ColumnTable struct {
 }
 
 // Returns a list of keybindings to be used in help text.
-func (st ColumnTable) KeyList() []key.Binding {
+func (st Model) KeyList() []key.Binding {
 	keyList := []key.Binding{
 		st.keys.Search,
 		st.keys.ExitSearch,
@@ -183,8 +183,8 @@ func calcSlice(length, currentPage, pageSize int) (int, int) {
 	return currentPage * pageSize, currentPage*pageSize + pageSize
 }
 
-// New creates a new ColumnTable.
-func New(columns []*Column, rows []*Row, pageSize int, previousChoice string, allowDelete bool, options Options) ColumnTable {
+// New creates a new Model.
+func New(columns []*Column, rows []*Row, pageSize int, previousChoice string, allowDelete bool, options Options) Model {
 	searchField := textinput.New()
 	searchField.Placeholder = ""
 	searchField.Focus()
@@ -196,7 +196,7 @@ func New(columns []*Column, rows []*Row, pageSize int, previousChoice string, al
 
 	sliceStart, sliceEnd := calcSlice(numRows, 0, pageSize)
 
-	return ColumnTable{
+	return Model{
 		keys: newKeyMap(options.SingularItemName),
 
 		currentRowsSlice: rows[sliceStart:sliceEnd],
@@ -215,7 +215,7 @@ func New(columns []*Column, rows []*Row, pageSize int, previousChoice string, al
 
 // Update updates the model and optionally returns a command.
 // It is part of the bubbletea model interface.
-func (ct ColumnTable) Update(msg tea.Msg) (ColumnTable, tea.Cmd) {
+func (ct Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 	var cmd tea.Cmd
 
@@ -269,7 +269,7 @@ func (ct ColumnTable) Update(msg tea.Msg) (ColumnTable, tea.Cmd) {
 }
 
 // updateInselectMode updates the column table when in select mode.
-func updateInselectMode(ct ColumnTable, msg tea.Msg) (ColumnTable, tea.Cmd) {
+func updateInselectMode(ct Model, msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
 
 	// Is it a key press?
@@ -321,7 +321,7 @@ func updateInselectMode(ct ColumnTable, msg tea.Msg) (ColumnTable, tea.Cmd) {
 }
 
 // updateInSearchMode updates the column table when in search mode.
-func updateInSearchMode(ct ColumnTable, msg tea.Msg) (ColumnTable, tea.Cmd) {
+func updateInSearchMode(ct Model, msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
 
 	case tea.KeyMsg:
@@ -338,7 +338,7 @@ func updateInSearchMode(ct ColumnTable, msg tea.Msg) (ColumnTable, tea.Cmd) {
 
 // View returns the view for the model.
 // It is part of the bubbletea model interface.
-func (ct ColumnTable) View() string {
+func (ct Model) View() string {
 
 	var mainBuilder strings.Builder
 
@@ -422,6 +422,6 @@ func (ct ColumnTable) View() string {
 
 // Init returns an initial command.
 // It is part of the bubbletea model interface.
-func (n ColumnTable) Init() tea.Cmd {
+func (n Model) Init() tea.Cmd {
 	return nil
 }

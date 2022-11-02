@@ -1,6 +1,11 @@
 package kubeui
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"fmt"
+	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+)
 
 // ErrorMessageStyle is used to style error messages.
 var ErrorMessageStyle = lipgloss.NewStyle().
@@ -12,3 +17,17 @@ var StatusBarStyle = lipgloss.NewStyle().
 	BorderStyle(lipgloss.NormalBorder()).
 	BorderForeground(lipgloss.Color("63")).
 	BorderBottom(true)
+
+// StatusBar returns a string representing a status bar.
+// Values are printed with separator in between.
+func StatusBar(width int, separator string, values ...string) string {
+	statusBar := StatusBarStyle.Width(width)
+
+	builder := &strings.Builder{}
+
+	for _, v := range values {
+		builder.WriteString(fmt.Sprintf("%s%s", v, separator))
+	}
+
+	return statusBar.Render(lipgloss.NewStyle().Width(width).Render(strings.TrimRight(builder.String(), separator)))
+}

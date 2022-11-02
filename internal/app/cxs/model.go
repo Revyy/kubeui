@@ -50,12 +50,12 @@ type Model struct {
 	configAccess clientcmd.ConfigAccess
 
 	// searchtable used to select and delete contexts.
-	table searchtable.SearchTable
+	table searchtable.Model
 
 	// Yes/No dialog.
 	// If non nil then the dialog is considered to be active.
 	// A new dialog is created when needed.
-	activeDialog *confirm.Dialog
+	activeDialog *confirm.Model
 
 	// Windows size
 	windowSize tea.WindowSizeMsg
