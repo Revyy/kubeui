@@ -216,7 +216,6 @@ func (pv Model) updateViewportContents() Model {
 func (pv Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		// TODO: update viewports.
 		pv.windowWidth = msg.Width
 		pv.windowHeight = msg.Height
 		pv = pv.updateViewportSizes()
