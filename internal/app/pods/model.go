@@ -11,7 +11,6 @@ import (
 	"kubeui/internal/pkg/k8s"
 	"kubeui/internal/pkg/k8scommand"
 	"kubeui/internal/pkg/kubeui"
-	"kubeui/internal/pkg/kubeui/help"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -62,9 +61,6 @@ type Model struct {
 	// Windows size.
 	windowSize tea.WindowSizeMsg
 
-	// Help.
-	help help.Model
-
 	// SearchTable used to select a namespace.
 	namespaceTable searchtable.Model
 
@@ -108,7 +104,6 @@ func NewModel(rawConfig api.Config, configAccess clientcmd.ConfigAccess, clientS
 		kubectl:          clientSet,
 		currentNamespace: "default",
 		state:            INITIALIZING,
-		help:             help.New(),
 	}
 }
 
@@ -117,10 +112,10 @@ func NewModel(rawConfig api.Config, configAccess clientcmd.ConfigAccess, clientS
 func (m Model) ShortHelp() []key.Binding {
 
 	if m.state == ERROR {
-		return []key.Binding{m.keys.quit}
+		return []key.Binding{m.keys.Quit}
 	}
 
-	bindings := []key.Binding{m.keys.help, m.keys.quit}
+	bindings := []key.Binding{m.keys.Help, m.keys.Quit}
 
 	if m.state == POD_SELECTION {
 		bindings = append(bindings, m.keys.refreshPodList, m.keys.selectNamespace)
@@ -140,11 +135,11 @@ func (m Model) FullHelp() [][]key.Binding {
 	// We look at prevState here as we are in the FULLHELP state and want to display the full help of the previous state
 	// before going back there.
 	if m.prevState == ERROR {
-		return [][]key.Binding{{m.keys.quit}}
+		return [][]key.Binding{{m.keys.Quit}}
 	}
 
 	bindings := [][]key.Binding{
-		{m.keys.help, m.keys.quit},
+		{m.keys.Help, m.keys.Quit},
 	}
 
 	switch m.prevState {
@@ -179,7 +174,6 @@ func (m Model) updateState(newState AppState) Model {
 
 // windowSizeUpdate handles updates to the terminal window size.
 func (m Model) windowSizeUpdate(windowSize tea.WindowSizeMsg) Model {
-	m.help.Width = windowSize.Width
 	m.windowSize = windowSize
 	return m
 }
@@ -190,7 +184,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// If we are in the error state we only allow quitting.
 	if m.state == ERROR {
-		if k, ok := msg.(tea.KeyMsg); ok && key.Matches(k, m.keys.quit) {
+		if k, ok := msg.(tea.KeyMsg); ok && key.Matches(k, m.keys.Quit) {
 			return m, tea.Quit
 		}
 		return m, nil
@@ -208,9 +202,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case tea.KeyMsg:
 		switch {
-		case key.Matches(msg, m.keys.quit):
+		case key.Matches(msg, m.keys.Quit):
 			return m, tea.Quit
-		case key.Matches(msg, m.keys.help):
+		case key.Matches(msg, m.keys.Help):
 			if m.state == FULLHELP {
 				m = m.updateState(m.prevState)
 			} else {
@@ -397,8 +391,8 @@ func (m Model) confirmPodDeletionUpdate(msg tea.Msg) (Model, tea.Cmd) {
 // headerView builds a view containing basic help information and a status bar for some states.
 func (m Model) headerView() string {
 	builder := strings.Builder{}
-	helpView := m.help.ShortHelpView(m.ShortHelp())
-	builder.WriteString(helpView)
+
+	builder.WriteString(kubeui.ShortHelp(m.windowSize.Width, m.ShortHelp()))
 	builder.WriteString("\n\n")
 
 	if slices.Contains([]AppState{CONFIRM_POD_DELETION, INITIALIZING, ERROR}, m.state) {
@@ -450,7 +444,7 @@ func (m Model) View() string {
 		builder.WriteString(m.headerView())
 		builder.WriteString(m.podView.View())
 	case FULLHELP:
-		builder.WriteString(m.help.FullHelpView(m.FullHelp()))
+		builder.WriteString(kubeui.FullHelp(m.windowSize.Width, m.FullHelp()))
 	}
 
 	return builder.String()
