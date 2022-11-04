@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"strings"
 
-	"kubeui/internal/app/pods/message"
 	"kubeui/internal/pkg/component/columntable"
 	"kubeui/internal/pkg/component/confirm"
 	"kubeui/internal/pkg/component/podview"
 	"kubeui/internal/pkg/component/searchtable"
 	"kubeui/internal/pkg/k8s"
+	"kubeui/internal/pkg/k8scommand"
 	"kubeui/internal/pkg/kubeui"
 	"kubeui/internal/pkg/kubeui/help"
 
@@ -22,42 +22,6 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 )
-
-// appKeyMap defines the keys that are handled at the top level in the application.
-// These keys will be checked before passing along a msg to underlying components.
-type appKeyMap struct {
-	quit            key.Binding
-	exitView        key.Binding
-	help            key.Binding
-	selectNamespace key.Binding
-	refreshPodList  key.Binding
-}
-
-// newAppKeyMap defines the actual key bindings and creates an appKeyMap.
-func newAppKeyMap() *appKeyMap {
-	return &appKeyMap{
-		quit: key.NewBinding(
-			key.WithKeys("ctrl+c", "ctrl+q"),
-			key.WithHelp("ctrl+c,ctrl+q", "Quit"),
-		),
-		exitView: key.NewBinding(
-			key.WithKeys("esc"),
-			key.WithHelp("esc", "Exit current view"),
-		),
-		help: key.NewBinding(
-			key.WithKeys("ctrl+h"),
-			key.WithHelp("ctrl+h", "Toggle help"),
-		),
-		selectNamespace: key.NewBinding(
-			key.WithKeys("ctrl+n"),
-			key.WithHelp("ctrl+n", "Select namespace"),
-		),
-		refreshPodList: key.NewBinding(
-			key.WithKeys("ctrl+r"),
-			key.WithHelp("ctrl+r", "Refresh pod list"),
-		),
-	}
-}
 
 // AppState defines the different states the application can be in.
 type AppState uint16
@@ -118,6 +82,7 @@ type Model struct {
 
 	// Indicates which state the application is in.
 	state AppState
+
 	// The previous state of the application.
 	prevState AppState
 
@@ -291,7 +256,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m Model) initializingUpdate(msg tea.Msg) (Model, tea.Cmd) {
 
 	switch msgT := msg.(type) {
-	case message.Initialization:
+	case k8scommand.ListNamespacesMsg:
 		m.namespaces = slices.Map(msgT.NamespaceList.Items, func(n v1.Namespace) string {
 			return n.GetName()
 		})
@@ -302,9 +267,9 @@ func (m Model) initializingUpdate(msg tea.Msg) (Model, tea.Cmd) {
 			m.currentNamespace = currentContext.Namespace
 		}
 
-		return m, m.listPods
+		return m, k8scommand.ListPods(m.kubectl, m.currentNamespace)
 	// This is the result message of m.listPods.
-	case message.ListPods:
+	case k8scommand.ListPodsMsg:
 		m.pods = msgT.PodList.Items
 		podColumns, podRows := podTableContents(m.pods)
 		m.podTable = columntable.New(podColumns, podRows, 10, "", true, columntable.Options{SingularItemName: "pod", StartInSearchMode: true})
@@ -330,7 +295,7 @@ func (m Model) namespaceSelectionUpdate(msg tea.Msg) (Model, tea.Cmd) {
 
 		m.currentNamespace = msgT.Value
 		m = m.updateState(POD_SELECTION)
-		return m, m.listPods
+		return m, k8scommand.ListPods(m.kubectl, m.currentNamespace)
 	}
 
 	var cmd tea.Cmd
@@ -343,7 +308,7 @@ func (m Model) podSelectionUpdate(msg tea.Msg) (Model, tea.Cmd) {
 
 	switch msgT := msg.(type) {
 	// The message sent after a new list of pods have been fetched using the listPods command.
-	case message.ListPods:
+	case k8scommand.ListPodsMsg:
 		m.pods = msgT.PodList.Items
 		podColumns, podRows := podTableContents(m.pods)
 
@@ -353,10 +318,10 @@ func (m Model) podSelectionUpdate(msg tea.Msg) (Model, tea.Cmd) {
 
 	// When a pod is selected we fetch an updated version of the pod.
 	case columntable.Selection:
-		return m, m.getPod(msgT.Id)
+		return m, k8scommand.GetPod(m.kubectl, m.currentNamespace, msgT.Id)
 
 	// When the pod is fetched then we move the state to PODVIEW and create a new podview to view the state of the pod.
-	case message.GetPod:
+	case k8scommand.GetPodMsg:
 		m = m.updateState(PODVIEW)
 		m.podView = podview.New(*msgT.Pod, lipgloss.Height(m.headerView()), m.windowSize.Width, m.windowSize.Height)
 		m.currentPod = *msgT.Pod
@@ -371,13 +336,13 @@ func (m Model) podSelectionUpdate(msg tea.Msg) (Model, tea.Cmd) {
 		return m, nil
 
 	// When a pod is actually deleted we refresh the pod list by returning the listPods command.
-	case message.PodDeleted:
-		return m, m.listPods
+	case k8scommand.PodDeletedMsg:
+		return m, k8scommand.ListPods(m.kubectl, m.currentNamespace)
 
 	// Refresh the pod list.
 	case tea.KeyMsg:
 		if key.Matches(msgT, m.keys.refreshPodList) {
-			return m, m.listPods
+			return m, k8scommand.ListPods(m.kubectl, m.currentNamespace)
 		}
 	}
 
@@ -393,11 +358,11 @@ func (m Model) podViewUpdate(msg tea.Msg) (Model, tea.Cmd) {
 	case tea.KeyMsg:
 		if key.Matches(msgT, m.keys.exitView) {
 			m = m.updateState(POD_SELECTION)
-			return m, m.listPods
+			return m, k8scommand.ListPods(m.kubectl, m.currentNamespace)
 		}
 	case podview.Refresh:
-		return m, m.getPod(msgT.PodName)
-	case message.GetPod:
+		return m, k8scommand.GetPod(m.kubectl, m.currentNamespace, msgT.PodName)
+	case k8scommand.GetPodMsg:
 		var cmd tea.Cmd
 		m.podView, cmd = m.podView.Update(podview.NewPod{Pod: *msgT.Pod})
 		m.currentPod = *msgT.Pod
@@ -417,7 +382,7 @@ func (m Model) confirmPodDeletionUpdate(msg tea.Msg) (Model, tea.Cmd) {
 		m = m.updateState(POD_SELECTION)
 		m.activeDialog = nil
 		if msgT.Pressed.Desc == "Yes" {
-			return m, m.deletePod(msgT.Pressed.Id)
+			return m, k8scommand.DeletePod(m.kubectl, m.currentNamespace, msgT.Pressed.Id)
 		}
 
 		return m, nil
@@ -494,5 +459,5 @@ func (m Model) View() string {
 // Init returns an initial command.
 // It is part of the bubbletea model interface.
 func (m Model) Init() tea.Cmd {
-	return m.listNamespaces
+	return k8scommand.ListNamespaces(m.kubectl)
 }
