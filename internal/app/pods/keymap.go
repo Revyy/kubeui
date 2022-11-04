@@ -1,13 +1,16 @@
 package pods
 
-import "github.com/charmbracelet/bubbles/key"
+import (
+	"kubeui/internal/pkg/kubeui"
+
+	"github.com/charmbracelet/bubbles/key"
+)
 
 // appKeyMap defines the keys that are handled at the top level in the application.
 // These keys will be checked before passing along a msg to underlying components.
 type appKeyMap struct {
-	quit            key.Binding
+	kubeui.GlobalKeyMap
 	exitView        key.Binding
-	help            key.Binding
 	selectNamespace key.Binding
 	refreshPodList  key.Binding
 }
@@ -15,17 +18,10 @@ type appKeyMap struct {
 // newAppKeyMap defines the actual key bindings and creates an appKeyMap.
 func newAppKeyMap() *appKeyMap {
 	return &appKeyMap{
-		quit: key.NewBinding(
-			key.WithKeys("ctrl+c", "ctrl+q"),
-			key.WithHelp("ctrl+c,ctrl+q", "Quit"),
-		),
+		GlobalKeyMap: kubeui.NewGlobalKeyMap(),
 		exitView: key.NewBinding(
 			key.WithKeys("esc"),
 			key.WithHelp("esc", "Exit current view"),
-		),
-		help: key.NewBinding(
-			key.WithKeys("ctrl+h"),
-			key.WithHelp("ctrl+h", "Toggle help"),
 		),
 		selectNamespace: key.NewBinding(
 			key.WithKeys("ctrl+n"),
