@@ -114,7 +114,7 @@ func DeletePod(kubectl *kubernetes.Clientset, namespace, name string) tea.Cmd {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		err := kubectl.CoreV1().Pods(name).Delete(ctx, name, metav1.DeleteOptions{})
+		err := kubectl.CoreV1().Pods(namespace).Delete(ctx, name, metav1.DeleteOptions{})
 
 		if err != nil {
 			return fmt.Errorf("failed to delete pod: %v", err)

@@ -51,6 +51,14 @@ func (m Msg) IsError() (error, bool) {
 	return nil, false
 }
 
+// IsKeyMsg checks if the message contains a key click.
+func (m Msg) IsKeyMsg() bool {
+
+	_, ok := m.TeaMsg.(tea.KeyMsg)
+
+	return ok
+}
+
 // MatchesKeyBindings checks if the message matches a specific KeyBinding.
 func (m Msg) MatchesKeyBindings(bindings ...key.Binding) bool {
 

@@ -26,6 +26,16 @@ func newKeyMap() *keyMap {
 	}
 }
 
+func (v View) fullHelp() [][]key.Binding {
+
+	bindings := [][]key.Binding{
+		{v.keys.Help, v.keys.Quit, v.keys.ExitView},
+	}
+	bindings = append(bindings, v.namespaceTable.KeyList())
+
+	return bindings
+}
+
 // New creates a new View.
 func New() View {
 	return View{
@@ -42,17 +52,35 @@ type View struct {
 
 	// SearchTable used to select a namespace.
 	namespaceTable searchtable.Model
+
+	// Show full help view or not.
+	showFullHelp bool
 }
 
 // Update handles new messages from the runtime.
 func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.View, tea.Cmd) {
 
+	if msg.IsKeyMsg() && v.showFullHelp {
+		v.showFullHelp = false
+		return c, v, nil
+	}
+
+	if msg.MatchesKeyBindings(v.keys.Help) && !v.showFullHelp {
+		v.showFullHelp = true
+		return c, v, nil
+	}
+
 	if msg.MatchesKeyBindings(v.keys.Quit) {
 		return c, v, kubeui.Exit()
 	}
 
+	if msg.MatchesKeyBindings(v.keys.ExitView) {
+		return c, v, kubeui.PushView("pod_selection")
+	}
+
 	// Results
 	switch t := msg.TeaMsg.(type) {
+
 	case k8scommand.ListNamespacesMsg:
 		v.namespaces = slices.Map(t.NamespaceList.Items, func(n v1.Namespace) string {
 			return n.GetName()
@@ -88,9 +116,14 @@ func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.V
 
 // View renders the ui of the view.
 func (v View) View(c kubeui.Context) string {
+
+	if v.showFullHelp {
+		return kubeui.FullHelp(c.WindowWidth, v.fullHelp())
+	}
+
 	builder := strings.Builder{}
 
-	builder.WriteString(kubeui.ShortHelp(c.WindowWidth, []key.Binding{v.keys.Quit}))
+	builder.WriteString(kubeui.ShortHelp(c.WindowWidth, []key.Binding{v.keys.Help, v.keys.Quit, v.keys.ExitView}))
 	builder.WriteString("\n\n")
 
 	statusBar := kubeui.StatusBar(c.WindowWidth-1, " ", fmt.Sprintf("Context: %s", c.ApiConfig.CurrentContext))

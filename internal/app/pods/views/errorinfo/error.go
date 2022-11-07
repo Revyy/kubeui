@@ -48,6 +48,7 @@ func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.V
 func (v View) View(c kubeui.Context) string {
 	builder := strings.Builder{}
 	builder.WriteString(kubeui.ShortHelp(c.WindowWidth, []key.Binding{v.keys.Quit}))
+	builder.WriteString("\n\n")
 	builder.WriteString("An error occured\n\n")
 	builder.WriteString(kubeui.ErrorMessageStyle.Render(kubeui.LineBreak(v.message, c.WindowWidth)))
 

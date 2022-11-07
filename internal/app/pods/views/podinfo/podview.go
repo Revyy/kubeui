@@ -40,6 +40,29 @@ func newKeyMap() *keyMap {
 	}
 }
 
+func (v View) fullHelp() [][]key.Binding {
+
+	bindings := [][]key.Binding{
+		{v.keys.Help, v.keys.Quit, v.keys.Refresh, v.keys.ExitView},
+	}
+
+	viewPortKeys := viewport.DefaultKeyMap()
+
+	bindings = append(bindings, []key.Binding{
+		v.keys.Refresh,
+		v.keys.Left,
+		v.keys.Right,
+		viewPortKeys.Up,
+		viewPortKeys.Down,
+		viewPortKeys.PageUp,
+		viewPortKeys.PageDown,
+		viewPortKeys.HalfPageUp,
+		viewPortKeys.HalfPageDown,
+	})
+
+	return bindings
+}
+
 // New creates a new View.
 func New(c kubeui.Context) View {
 
@@ -63,6 +86,9 @@ type View struct {
 	labelsViewPort      viewport.Model
 	eventsViewPort      viewport.Model
 	logsViewPort        viewport.Model
+
+	// Show full help view or not.
+	showFullHelp bool
 
 	pod *k8s.Pod
 }
@@ -112,6 +138,11 @@ func (t tab) String() string {
 // Update handles new messages from the runtime.
 func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.View, tea.Cmd) {
 
+	if msg.IsKeyMsg() && v.showFullHelp {
+		v.showFullHelp = false
+		return c, v, nil
+	}
+
 	// Keys
 	switch {
 	case msg.MatchesKeyBindings(v.keys.Quit):
@@ -119,6 +150,10 @@ func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.V
 
 	case msg.MatchesKeyBindings(v.keys.ExitView):
 		return c, v, kubeui.PushView("pod_selection")
+
+	case msg.MatchesKeyBindings(v.keys.Help) && !v.showFullHelp:
+		v.showFullHelp = true
+		return c, v, nil
 
 	case msg.MatchesKeyBindings(v.keys.Left):
 		v = v.moveTabLeft()
@@ -134,11 +169,16 @@ func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.V
 	switch t := msg.TeaMsg.(type) {
 	case k8scommand.GetPodMsg:
 		v.pod = t.Pod
+
 		v.annotationsViewPort.SetContent(kubeui.RowsString(kubeui.StringMapTable(c.WindowWidth, "Key", "Value", v.pod.Pod.Annotations)))
 		v.labelsViewPort.SetContent(kubeui.RowsString(kubeui.StringMapTable(c.WindowWidth, "Key", "Value", v.pod.Pod.Labels)))
 		v.eventsViewPort.SetContent(kubeui.RowsString(kubeui.EventsTable(c.WindowWidth, v.pod.Events)))
-
 		v.logsViewPort.SetContent(strings.Join(buildJSONLines(c.WindowWidth, v.pod.Logs), "\n\n"))
+
+		for _, viewPort := range []*viewport.Model{&v.annotationsViewPort, &v.labelsViewPort, &v.eventsViewPort, &v.logsViewPort} {
+			viewPort.Height = c.WindowHeight - lipgloss.Height(v.headerView(c.WindowWidth)) + lipgloss.Height(footerView(c.WindowWidth, *viewPort))
+		}
+
 		v.logsViewPort.GotoBottom()
 
 		return c, v, nil
@@ -219,24 +259,17 @@ func (v View) moveTabRight() View {
 // View renders the ui of the view.
 func (v View) View(c kubeui.Context) string {
 
-	if v.pod == nil {
-		return "Loading..."
+	if v.showFullHelp {
+		return kubeui.FullHelp(c.WindowWidth, v.fullHelp())
 	}
 
 	builder := strings.Builder{}
+	header := v.headerView(c.WindowWidth)
+	builder.WriteString(header)
 
-	builder.WriteString(kubeui.ShortHelp(c.WindowWidth, []key.Binding{
-		v.keys.Help,
-		v.keys.Quit,
-		v.keys.Refresh,
-		v.keys.Left,
-		v.keys.Right,
-	}))
-
-	builder.WriteString("\n\n")
-
-	builder.WriteString(kubeui.TabsSelect(v.cursor, c.WindowWidth, v.tabs) + "\n\n")
-	builder.WriteString(tableHeaderView(c.WindowWidth, v.tab, *v.pod))
+	if v.pod == nil {
+		return builder.String()
+	}
 
 	switch v.tab {
 	case STATUS:
@@ -246,22 +279,49 @@ func (v View) View(c kubeui.Context) string {
 
 	case ANNOTATIONS:
 		footer := footerView(c.WindowWidth, v.annotationsViewPort)
-		offset := lipgloss.Height(builder.String()) + lipgloss.Height(footer)
+		offset := lipgloss.Height(header) + lipgloss.Height(footer)
 		builder.WriteString(renderViewport(c.WindowWidth, c.WindowHeight, offset, v.annotationsViewPort))
+		builder.WriteString(footer)
 	case LABELS:
 		footer := footerView(c.WindowWidth, v.labelsViewPort)
-		offset := lipgloss.Height(builder.String()) + lipgloss.Height(footer)
+		offset := lipgloss.Height(header) + lipgloss.Height(footer)
 		builder.WriteString(renderViewport(c.WindowWidth, c.WindowHeight, offset, v.labelsViewPort))
+		builder.WriteString(footer)
 
 	case EVENTS:
 		footer := footerView(c.WindowWidth, v.labelsViewPort)
-		offset := lipgloss.Height(builder.String()) + lipgloss.Height(footer)
+		offset := lipgloss.Height(header) + lipgloss.Height(footer)
 		builder.WriteString(renderViewport(c.WindowWidth, c.WindowHeight, offset, v.eventsViewPort))
+		builder.WriteString(footer)
 	case LOGS:
 		footer := footerView(c.WindowWidth, v.logsViewPort)
-		offset := lipgloss.Height(builder.String()) + lipgloss.Height(footer)
+		offset := lipgloss.Height(header) + lipgloss.Height(footer)
 		builder.WriteString(renderViewport(c.WindowWidth, c.WindowHeight, offset, v.logsViewPort))
+		builder.WriteString(footer)
 	}
+
+	return builder.String()
+}
+
+func (v View) headerView(width int) string {
+	if v.pod == nil {
+		return "Loading..."
+	}
+
+	builder := strings.Builder{}
+
+	builder.WriteString(kubeui.ShortHelp(width, []key.Binding{
+		v.keys.Help,
+		v.keys.Quit,
+		v.keys.Refresh,
+		v.keys.Left,
+		v.keys.Right,
+	}))
+
+	builder.WriteString("\n\n")
+
+	builder.WriteString(kubeui.TabsSelect(v.cursor, width, v.tabs) + "\n\n")
+	builder.WriteString(tableHeaderView(width, v.tab, *v.pod))
 
 	return builder.String()
 }

@@ -34,10 +34,26 @@ func newKeyMap() *keyMap {
 	}
 }
 
+func (v View) fullHelp() [][]key.Binding {
+
+	bindings := [][]key.Binding{
+		{v.keys.Help, v.keys.Quit, v.keys.Refresh},
+	}
+
+	bindings[0] = append(bindings[0], v.keys.SelectNamespace)
+
+	if len(v.pods) > 0 {
+		bindings = append(bindings, v.podTable.KeyList())
+	}
+
+	return bindings
+}
+
 // New creates a new View.
 func New() View {
 	return View{
-		keys: newKeyMap(),
+		keys:    newKeyMap(),
+		loading: true,
 	}
 }
 
@@ -53,10 +69,27 @@ type View struct {
 
 	// ColumnTable used to select a pod.
 	podTable columntable.Model
+
+	// Loading indicator
+	initialized bool
+	loading     bool
+
+	// Show full help view or not.
+	showFullHelp bool
 }
 
 // Update handles new messages from the runtime.
 func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.View, tea.Cmd) {
+
+	if msg.IsKeyMsg() && v.showFullHelp {
+		v.showFullHelp = false
+		return c, v, nil
+	}
+
+	if msg.MatchesKeyBindings(v.keys.Help) && !v.showFullHelp {
+		v.showFullHelp = true
+		return c, v, nil
+	}
 
 	if msg.MatchesKeyBindings(v.keys.Quit) {
 		return c, v, kubeui.Exit()
@@ -66,13 +99,27 @@ func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.V
 		return c, v, kubeui.PushView("namespace_selection")
 	}
 
+	if msg.MatchesKeyBindings(v.keys.Refresh) {
+		return c, v, k8scommand.ListPods(c.Kubectl, c.Namespace)
+	}
+
 	// Results
 	switch t := msg.TeaMsg.(type) {
 	case k8scommand.ListPodsMsg:
 		v.pods = t.PodList.Items
 		podColumns, podRows := podTableContents(v.pods)
 		var cmd tea.Cmd
-		v.podTable = columntable.New(podColumns, podRows, 10, "", true, columntable.Options{SingularItemName: "pod", StartInSearchMode: true})
+
+		// The first time we receive a list of pods then we create a new podTable.
+		// Otherwise we just update it.
+		if !v.initialized {
+			v.initialized = true
+			v.podTable = columntable.New(podColumns, podRows, 10, "", true, columntable.Options{SingularItemName: "pod", StartInSearchMode: true})
+		} else {
+			v.podTable, cmd = v.podTable.Update(columntable.UpdateRowsAndColumns{Rows: podRows, Columns: podColumns})
+		}
+
+		v.loading = false
 
 		return c, v, cmd
 
@@ -101,7 +148,7 @@ func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.V
 
 	// If we have an active dialog.
 	if v.activeDialog != nil {
-		dialog, cmd := v.activeDialog.Update(msg)
+		dialog, cmd := v.activeDialog.Update(msg.TeaMsg)
 		v.activeDialog = &dialog
 		return c, v, cmd
 	}
@@ -143,9 +190,14 @@ func podTableContents(pods []v1.Pod) ([]*columntable.Column, []*columntable.Row)
 
 // View renders the ui of the view.
 func (v View) View(c kubeui.Context) string {
+
+	if v.showFullHelp {
+		return kubeui.FullHelp(c.WindowWidth, v.fullHelp())
+	}
+
 	builder := strings.Builder{}
 
-	builder.WriteString(kubeui.ShortHelp(c.WindowWidth, []key.Binding{v.keys.Quit}))
+	builder.WriteString(kubeui.ShortHelp(c.WindowWidth, []key.Binding{v.keys.Help, v.keys.Quit, v.keys.SelectNamespace}))
 	builder.WriteString("\n\n")
 
 	if v.activeDialog != nil {
@@ -156,7 +208,9 @@ func (v View) View(c kubeui.Context) string {
 	podViewStatusBar := kubeui.StatusBar(c.WindowWidth-1, " ", fmt.Sprintf("Context: %s  Namespace: %s", c.ApiConfig.CurrentContext, c.Namespace))
 	builder.WriteString(podViewStatusBar + "\n")
 
-	if len(v.pods) == 0 {
+	if v.loading {
+		return "Loading..."
+	} else if len(v.pods) == 0 {
 		builder.WriteString(fmt.Sprintf("No pods found in namespace %s", c.Namespace))
 	} else {
 		builder.WriteString(v.podTable.View())
