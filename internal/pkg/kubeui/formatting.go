@@ -1,13 +1,11 @@
 package kubeui
 
 import (
-	"fmt"
 	"kubeui/internal/pkg/k8s"
 	"sort"
 	"strings"
 	"unicode"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/life4/genesis/maps"
 	"github.com/life4/genesis/slices"
 	v1 "k8s.io/api/core/v1"
@@ -81,11 +79,13 @@ func Truncate(text string, maxLen int) string {
 	return text
 }
 
+// DataColumn represents a column in a table.
 type DataColumn struct {
 	desc  string
 	width int
 }
 
+// DataRow represents a row in a table.
 type DataRow struct {
 	values []string
 }
@@ -183,66 +183,4 @@ func StringMapTable(maxWidth int, col1 string, col2 string, data map[string]stri
 	}
 
 	return columns, rows
-}
-
-// ColumnTable converts a set of columns and rows to an aligned table string
-func ColumnTable(columns []*DataColumn, rows []*DataRow) string {
-	var builder strings.Builder
-
-	builder.WriteString(ColumnsString(columns) + "\n\n")
-
-	// Iterate over the rows in the current page and print them out.
-	builder.WriteString(RowsString(columns, rows))
-
-	return builder.String()
-}
-
-// ColumnsString converts a set of columns to an aligned string
-func ColumnsString(columns []*DataColumn) string {
-
-	columnsData := slices.Map(columns, func(c *DataColumn) string {
-		return lipgloss.NewStyle().Width(c.width + 2).Render(c.desc)
-	})
-
-	return lipgloss.JoinHorizontal(lipgloss.Left, columnsData...)
-}
-
-// RowsString converts a set of rows to an aligned string
-func RowsString(columns []*DataColumn, rows []*DataRow) string {
-
-	var builder strings.Builder
-
-	// Iterate over the rows in the current page and print them out.
-	for _, row := range rows {
-
-		rowData := []string{}
-
-		for i, value := range row.values {
-			rowData = append(rowData, lipgloss.NewStyle().Width(columns[i].width+2).Render(value))
-		}
-		// Render the row
-		builder.WriteString(fmt.Sprintf("%s\n", lipgloss.JoinHorizontal(lipgloss.Left, rowData...)))
-	}
-
-	return builder.String()
-
-}
-
-// TabsSelect renders a tab select.
-func TabsSelect(cursor, maxWidth int, headers []string) string {
-	var tabsBuilder strings.Builder
-
-	// Iterate over the items in the current page and print them out.
-	for i, header := range headers {
-
-		// Is the cursor pointing at this choice?
-		if cursor == i {
-			tabsBuilder.WriteString(lipgloss.NewStyle().Underline(true).Render(header) + " ")
-			continue
-		}
-
-		tabsBuilder.WriteString(header + " ")
-	}
-
-	return lipgloss.NewStyle().Width(maxWidth).Render(tabsBuilder.String())
 }
