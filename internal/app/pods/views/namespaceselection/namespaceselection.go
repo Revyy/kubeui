@@ -55,6 +55,9 @@ type View struct {
 
 	// Show full help view or not.
 	showFullHelp bool
+
+	// If the View has been initialized or not.
+	initialized bool
 }
 
 // Update handles new messages from the runtime.
@@ -75,7 +78,8 @@ func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.V
 	}
 
 	if msg.MatchesKeyBindings(v.keys.ExitView) {
-		return c, v, kubeui.PushView("pod_selection")
+		// We don't reinitialize the pod selection view when exiting the view.
+		return c, v, kubeui.PushView("pod_selection", false)
 	}
 
 	// Results
@@ -95,6 +99,7 @@ func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.V
 				StartInSearchMode: true,
 			},
 		)
+		v.initialized = true
 		return c, v, nil
 
 	case searchtable.Selection:
@@ -105,7 +110,8 @@ func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.V
 		}
 
 		c.Namespace = t.Value
-		return c, v, kubeui.PushView("pod_selection")
+		// If we have made a selection then we reinitialize the pod selection view to load the pods for that namespace.
+		return c, v, kubeui.PushView("pod_selection", true)
 
 	}
 
@@ -136,6 +142,9 @@ func (v View) View(c kubeui.Context) string {
 
 // Init initializes the view.
 func (v View) Init(c kubeui.Context) tea.Cmd {
+	if v.initialized {
+		return nil
+	}
 	return k8scommand.ListNamespaces(c.Kubectl)
 }
 

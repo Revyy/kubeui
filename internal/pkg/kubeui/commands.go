@@ -24,15 +24,32 @@ func ExitView() tea.Cmd {
 
 // PushViewMsg is used to navigate to a new view.
 type PushViewMsg struct {
-	Id string
+	Id         string
+	Initialize bool
 }
 
 // PushView navigates to a new view.
 // It is up the the application to map the id to an actual view.
-func PushView(id string) tea.Cmd {
+func PushView(id string, initialize bool) tea.Cmd {
 	return func() tea.Msg {
 		return PushViewMsg{
-			Id: id,
+			Id:         id,
+			Initialize: initialize,
+		}
+	}
+}
+
+// PopViewMsg is used to navigate to the previous view.
+type PopViewMsg struct {
+	Initialize bool
+}
+
+// PopView navigates to the previous view.
+// It is basically used to simluate popups, or used to display an error view where you can choose to quit or go back to the previous view.
+func PopView(initialize bool) tea.Cmd {
+	return func() tea.Msg {
+		return PopViewMsg{
+			Initialize: initialize,
 		}
 	}
 }
