@@ -282,6 +282,7 @@ func (v View) View(c kubeui.Context) string {
 		offset := lipgloss.Height(header) + lipgloss.Height(footer)
 		builder.WriteString(renderViewport(c.WindowWidth, c.WindowHeight, offset, v.annotationsViewPort))
 		builder.WriteString(footer)
+
 	case LABELS:
 		footer := footerView(c.WindowWidth, v.labelsViewPort)
 		offset := lipgloss.Height(header) + lipgloss.Height(footer)
@@ -293,6 +294,7 @@ func (v View) View(c kubeui.Context) string {
 		offset := lipgloss.Height(header) + lipgloss.Height(footer)
 		builder.WriteString(renderViewport(c.WindowWidth, c.WindowHeight, offset, v.eventsViewPort))
 		builder.WriteString(footer)
+
 	case LOGS:
 		footer := footerView(c.WindowWidth, v.logsViewPort)
 		offset := lipgloss.Height(header) + lipgloss.Height(footer)

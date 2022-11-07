@@ -14,6 +14,8 @@ Then run:
 make install
 ```
 
+A binary called kubeui will be installed.
+
 ## Contribution
 Contribution is welcomed but keep in mind that this is very early days and the code structure is still very much experimental.
 
@@ -25,7 +27,9 @@ Tests are severely lacking at the moment but you can run them using `go test ./.
 make test
 ```
 
-## Binaries
+## Intructions
+
+Using kubeui is as simple as calling `kubeui [PROGRAM]`, where program is one of the programs listed below.
 
 ### cxs [STABLE]
 

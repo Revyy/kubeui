@@ -79,11 +79,13 @@ func Truncate(text string, maxLen int) string {
 	return text
 }
 
+// DataColumn represents a column in a table.
 type DataColumn struct {
 	desc  string
 	width int
 }
 
+// DataRow represents a row in a table.
 type DataRow struct {
 	values []string
 }
