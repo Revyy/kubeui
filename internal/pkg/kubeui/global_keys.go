@@ -6,8 +6,10 @@ import (
 
 // GlobalKeyMap defines the keys that should be processed no matter which view is active in an application.
 type GlobalKeyMap struct {
-	Quit key.Binding
-	Help key.Binding
+	Quit     key.Binding
+	Help     key.Binding
+	ExitView key.Binding
+	Refresh  key.Binding
 }
 
 // NewGlobalKeyMap defines the actual key bindings and creates a GlobalKeyMap.
@@ -20,6 +22,15 @@ func NewGlobalKeyMap() GlobalKeyMap {
 		Help: key.NewBinding(
 			key.WithKeys("ctrl+h"),
 			key.WithHelp("ctrl+h", "Toggle help"),
+		),
+		ExitView: key.NewBinding(
+			key.WithKeys("esc"),
+			key.WithHelp("esc", "Exit current view"),
+		),
+
+		Refresh: key.NewBinding(
+			key.WithKeys("ctrl+r"),
+			key.WithHelp("ctrl+r", "Refresh the data"),
 		),
 	}
 }
