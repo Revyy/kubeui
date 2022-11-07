@@ -71,8 +71,10 @@ type View struct {
 	podTable columntable.Model
 
 	// Loading indicator
+	loading bool
+
+	// If the View has been initialized or not.
 	initialized bool
-	loading     bool
 
 	// Show full help view or not.
 	showFullHelp bool
@@ -96,7 +98,7 @@ func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.V
 	}
 
 	if msg.MatchesKeyBindings(v.keys.SelectNamespace) {
-		return c, v, kubeui.PushView("namespace_selection")
+		return c, v, kubeui.PushView("namespace_selection", true)
 	}
 
 	if msg.MatchesKeyBindings(v.keys.Refresh) {
@@ -125,7 +127,7 @@ func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.V
 
 	case columntable.Selection:
 		c.SelectedPod = t.Id
-		return c, v, kubeui.PushView("pod_info")
+		return c, v, kubeui.PushView("pod_info", true)
 
 	// When the user tries to delete a pod we create a new confirmation dialog and move to the CONFIRM_POD_DELETION state which will
 	// display the dialog and handle the choice.
@@ -197,7 +199,7 @@ func (v View) View(c kubeui.Context) string {
 
 	builder := strings.Builder{}
 
-	builder.WriteString(kubeui.ShortHelp(c.WindowWidth, []key.Binding{v.keys.Help, v.keys.Quit, v.keys.SelectNamespace}))
+	builder.WriteString(kubeui.ShortHelp(c.WindowWidth, []key.Binding{v.keys.Help, v.keys.Quit, v.keys.SelectNamespace, v.keys.Refresh}))
 	builder.WriteString("\n\n")
 
 	if v.activeDialog != nil {

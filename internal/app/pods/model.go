@@ -19,10 +19,14 @@ type Model struct {
 	kubeuiContext kubeui.Context
 
 	// currentView is the currently displayed view.
-	currentView kubeui.View
+	currentView string
+	// previousView is the previously displayed view.
+	previousView string
 
 	initializing bool
 	errorMessage string
+
+	views map[string]kubeui.View
 }
 
 // NewModel creates a new model.
@@ -34,6 +38,7 @@ func NewModel(rawConfig api.Config, configAccess clientcmd.ConfigAccess, clientS
 			Namespace:    "default",
 			ApiConfig:    rawConfig,
 		},
+		views:        map[string]kubeui.View{},
 		initializing: true,
 	}
 }
@@ -61,29 +66,63 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.kubeuiContext.Namespace = currentContext.Namespace
 
 		if m.kubeuiContext.Namespace == "default" {
-			return m, kubeui.PushView("namespace_selection")
+			return m, kubeui.PushView("namespace_selection", true)
 		}
 
-		return m, kubeui.PushView("pod_selection")
+		return m, kubeui.PushView("pod_selection", true)
 
 	case tea.WindowSizeMsg:
 		return m.windowSizeUpdate(msg), nil
 	case error:
 		m.errorMessage = msg.Error()
-		return m, kubeui.PushView("error_info")
+		return m, kubeui.PushView("error_info", true)
 
 	case kubeui.PushViewMsg:
 		if m.initializing {
 			m.initializing = false
 		}
-		m.currentView = m.initializeView(msg.Id)
-		return m, m.currentView.Init(m.kubeuiContext)
+
+		_, ok := m.views[msg.Id]
+
+		if !ok {
+			m.views[msg.Id] = m.initializeView(msg.Id)
+		}
+
+		m.previousView = m.currentView
+		if m.previousView == "" {
+			m.previousView = msg.Id
+		}
+
+		m.currentView = msg.Id
+
+		if msg.Initialize {
+			return m, m.views[msg.Id].Init(m.kubeuiContext)
+		}
+
+		return m, nil
+
+	case kubeui.PopViewMsg:
+
+		_, ok := m.views[m.previousView]
+
+		if !ok {
+			return m, kubeui.Error(fmt.Errorf("program error, invalid view"))
+		}
+
+		m.currentView = m.previousView
+		m.previousView = ""
+
+		if msg.Initialize {
+			return m, m.views[m.currentView].Init(m.kubeuiContext)
+		}
+
+		return m, nil
 	}
 
-	c, v, cmd := m.currentView.Update(m.kubeuiContext, kubeui.Msg{TeaMsg: msg})
+	c, v, cmd := m.views[m.currentView].Update(m.kubeuiContext, kubeui.Msg{TeaMsg: msg})
 
 	m.kubeuiContext = c
-	m.currentView = v
+	m.views[m.currentView] = v
 
 	return m, cmd
 }
@@ -110,7 +149,7 @@ func (m Model) View() string {
 		return "Initializing..."
 	}
 
-	return m.currentView.View(m.kubeuiContext)
+	return m.views[m.currentView].View(m.kubeuiContext)
 }
 
 type Initialize struct{}

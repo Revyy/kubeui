@@ -149,7 +149,7 @@ func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.V
 		return c, v, kubeui.Exit()
 
 	case msg.MatchesKeyBindings(v.keys.ExitView):
-		return c, v, kubeui.PushView("pod_selection")
+		return c, v, kubeui.PushView("pod_selection", false)
 
 	case msg.MatchesKeyBindings(v.keys.Help) && !v.showFullHelp:
 		v.showFullHelp = true
