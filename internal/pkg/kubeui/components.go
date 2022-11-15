@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/life4/genesis/slices"
+	"github.com/muesli/reflow/wrap"
 )
 
 // ShortHelp returns a short help view.
@@ -84,4 +85,20 @@ func TabsSelect(cursor, maxWidth int, headers []string) string {
 	}
 
 	return lipgloss.NewStyle().Width(maxWidth).Render(tabsBuilder.String())
+}
+
+// HorizontalSelectList renders a horizontal list with an item highlighted as selected.
+func HorizontalSelectList(items []string, selectedItem string, maxWidth int) string {
+
+	builder := strings.Builder{}
+
+	for i, item := range items {
+		if item == selectedItem {
+			builder.WriteString(SelectedStyle.Render(fmt.Sprintf("[%d] %s", i+1, item)) + " ")
+			continue
+		}
+		builder.WriteString(UnselectedStyle.Render(fmt.Sprintf("[%d] %s", i+1, item)) + " ")
+	}
+
+	return wrap.String(builder.String(), maxWidth)
 }

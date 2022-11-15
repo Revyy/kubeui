@@ -8,6 +8,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"golang.org/x/sync/errgroup"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -68,10 +69,10 @@ func GetPod(kubectl *kubernetes.Clientset, namespace, id string) tea.Cmd {
 			return fmt.Errorf("failed to get pod events: %v", err)
 		}
 
-		logs := ""
+		logs := map[string]string{}
 
 		if len(pod.Status.ContainerStatuses) > 0 {
-			logs, err = getLogs(kubectl, namespace, pod.Name, pod.Status.ContainerStatuses[0].Name)
+			logs, err = getLogs(kubectl, namespace, pod)
 		}
 
 		if err != nil {
@@ -83,28 +84,69 @@ func GetPod(kubectl *kubernetes.Clientset, namespace, id string) tea.Cmd {
 
 }
 
-func getLogs(kubectl *kubernetes.Clientset, namespace, podName, containerName string) (string, error) {
+func getLogs(kubectl *kubernetes.Clientset, namespace string, pod *v1.Pod) (map[string]string, error) {
 
-	logsCtx, logsCancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer logsCancel()
+	containerLogs := map[string]string{}
 
-	tailLines := int64(100)
-	logsRequest := kubectl.CoreV1().Pods(namespace).GetLogs(podName, &v1.PodLogOptions{Container: containerName, TailLines: &tailLines})
+	errGroup := &errgroup.Group{}
 
-	podLogs, err := logsRequest.Stream(logsCtx)
+	for i := range pod.Status.ContainerStatuses {
 
-	if err != nil {
-		return "", err
+		container := pod.Status.ContainerStatuses[i]
+
+		errGroup.Go(func() error {
+
+			logsCtx, logsCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer logsCancel()
+
+			tailLines := int64(100)
+			logsRequest := kubectl.CoreV1().Pods(namespace).GetLogs(pod.GetName(), &v1.PodLogOptions{Container: container.Name, TailLines: &tailLines})
+
+			podLogs, err := logsRequest.Stream(logsCtx)
+
+			if err != nil {
+				return err
+			}
+			defer podLogs.Close()
+
+			buf := new(bytes.Buffer)
+			_, err = io.Copy(buf, podLogs)
+			if err != nil {
+				return err
+			}
+
+			containerLogs[container.Name] = buf.String()
+
+			return nil
+		})
 	}
-	defer podLogs.Close()
 
-	buf := new(bytes.Buffer)
-	_, err = io.Copy(buf, podLogs)
-	if err != nil {
-		return "", err
+	if err := errGroup.Wait(); err != nil {
+		return containerLogs, err
 	}
 
-	return buf.String(), nil
+	return containerLogs, nil
+
+	// logsCtx, logsCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	// defer logsCancel()
+
+	// tailLines := int64(100)
+	// logsRequest := kubectl.CoreV1().Pods(namespace).GetLogs(pod.GetName(), &v1.PodLogOptions{Container: pod.Status.ContainerStatuses[0].Name, TailLines: &tailLines})
+
+	// podLogs, err := logsRequest.Stream(logsCtx)
+
+	// if err != nil {
+	// 	return "", err
+	// }
+	// defer podLogs.Close()
+
+	// buf := new(bytes.Buffer)
+	// _, err = io.Copy(buf, podLogs)
+	// if err != nil {
+	// 	return "", err
+	// }
+
+	// return buf.String(), nil
 }
 
 // DeletePod deletes a pod in the current context and namespace.

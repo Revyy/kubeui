@@ -31,3 +31,9 @@ func StatusBar(width int, separator string, values ...string) string {
 
 	return statusBar.Render(lipgloss.NewStyle().Width(width).Render(strings.TrimRight(builder.String(), separator)))
 }
+
+// SelectedStyle is used for selected items.
+var SelectedStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "235", Dark: "252"})
+
+// UnselectedStyle is used for unselected items.
+var UnselectedStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "250", Dark: "238"})

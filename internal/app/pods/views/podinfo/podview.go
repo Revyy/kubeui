@@ -7,6 +7,7 @@ import (
 	"kubeui/internal/pkg/k8s"
 	"kubeui/internal/pkg/k8scommand"
 	"kubeui/internal/pkg/kubeui"
+	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -21,8 +22,9 @@ import (
 // keyMap defines the keys that are handled by this view.
 type keyMap struct {
 	kubeui.GlobalKeyMap
-	Left  key.Binding
-	Right key.Binding
+	Left         key.Binding
+	Right        key.Binding
+	NumberChoice key.Binding
 }
 
 // newKeyMap defines the actual key bindings and creates a keyMap.
@@ -36,6 +38,10 @@ func newKeyMap() *keyMap {
 		Right: key.NewBinding(
 			key.WithKeys("right"),
 			key.WithHelp("right", "Move cursor right one position"),
+		),
+		NumberChoice: key.NewBinding(
+			key.WithKeys("1", "2", "3", "4", "5", "6", "7", "8", "9"),
+			key.WithHelp("1,2,3,4,5,6,7,8,9", "Select container"),
 		),
 	}
 }
@@ -52,6 +58,7 @@ func (v View) fullHelp() [][]key.Binding {
 		v.keys.Refresh,
 		v.keys.Left,
 		v.keys.Right,
+		v.keys.NumberChoice,
 		viewPortKeys.Up,
 		viewPortKeys.Down,
 		viewPortKeys.PageUp,
@@ -80,6 +87,10 @@ type View struct {
 	cursor int
 	tab    tab
 	tabs   []string
+
+	// List of container names.
+	selectedContainer string
+	containerNames    []string
 
 	// Viewports for scrolling content
 	annotationsViewPort viewport.Model
@@ -163,17 +174,42 @@ func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.V
 		return c, v, nil
 	case msg.MatchesKeyBindings(v.keys.Refresh):
 		return c, v, k8scommand.GetPod(c.Kubectl, c.Namespace, c.SelectedPod)
+	case msg.MatchesKeyBindings(v.keys.NumberChoice) && v.tab == LOGS:
+
+		v, err := v.selectContainer(msg)
+
+		if err != nil {
+			return c, v, kubeui.Error(err)
+		}
+
+		// If the selected container has logs then update the logview.
+		if _, ok := v.pod.Logs[v.selectedContainer]; ok {
+			v.logsViewPort.SetContent(strings.Join(buildJSONLines(c.WindowWidth, v.pod.Logs[v.selectedContainer]), "\n\n"))
+			v.logsViewPort.GotoBottom()
+		}
+
+		return c, v, nil
 	}
 
 	// Results
 	switch t := msg.TeaMsg.(type) {
 	case k8scommand.GetPodMsg:
 		v.pod = t.Pod
+		v.containerNames = v.pod.ContainerNames()
+
+		// If we don't have a selected container
+		if v.selectedContainer == "" && len(v.containerNames) > 0 {
+			v.selectedContainer = v.containerNames[0]
+		}
+
+		// If the selected container has logs then update the logview.
+		if _, ok := t.Pod.Logs[v.selectedContainer]; ok {
+			v.logsViewPort.SetContent(strings.Join(buildJSONLines(c.WindowWidth, t.Pod.Logs[v.selectedContainer]), "\n\n"))
+		}
 
 		v.annotationsViewPort.SetContent(kubeui.RowsString(kubeui.StringMapTable(c.WindowWidth, "Key", "Value", v.pod.Pod.Annotations)))
 		v.labelsViewPort.SetContent(kubeui.RowsString(kubeui.StringMapTable(c.WindowWidth, "Key", "Value", v.pod.Pod.Labels)))
 		v.eventsViewPort.SetContent(kubeui.RowsString(kubeui.EventsTable(c.WindowWidth, v.pod.Events)))
-		v.logsViewPort.SetContent(strings.Join(buildJSONLines(c.WindowWidth, v.pod.Logs), "\n\n"))
 
 		for _, viewPort := range []*viewport.Model{&v.annotationsViewPort, &v.labelsViewPort, &v.eventsViewPort, &v.logsViewPort} {
 			viewPort.Height = c.WindowHeight - lipgloss.Height(v.headerView(c.WindowWidth)) + lipgloss.Height(footerView(c.WindowWidth, *viewPort))
@@ -256,6 +292,23 @@ func (v View) moveTabRight() View {
 	return v
 }
 
+func (v View) selectContainer(msg kubeui.Msg) (View, error) {
+	key := msg.TeaMsg.(tea.KeyMsg)
+	intKey, err := strconv.Atoi(key.String())
+
+	if err != nil {
+		return v, err
+	}
+	// Subtract one to make it match the index for container names.
+	intKey--
+
+	if intKey >= 0 && intKey <= len(v.containerNames)-1 {
+		v.selectedContainer = v.containerNames[intKey]
+	}
+
+	return v, nil
+}
+
 // View renders the ui of the view.
 func (v View) View(c kubeui.Context) string {
 
@@ -297,7 +350,8 @@ func (v View) View(c kubeui.Context) string {
 
 	case LOGS:
 		footer := footerView(c.WindowWidth, v.logsViewPort)
-		offset := lipgloss.Height(header) + lipgloss.Height(footer)
+
+		offset := lipgloss.Height(header) + lipgloss.Height(footer) //+ lipgloss.Height(containers)
 		builder.WriteString(renderViewport(c.WindowWidth, c.WindowHeight, offset, v.logsViewPort))
 		builder.WriteString(footer)
 	}
@@ -323,6 +377,12 @@ func (v View) headerView(width int) string {
 	builder.WriteString("\n\n")
 
 	builder.WriteString(kubeui.TabsSelect(v.cursor, width, v.tabs) + "\n\n")
+
+	if v.tab == LOGS {
+		builder.WriteString(kubeui.HorizontalSelectList(v.containerNames, v.selectedContainer, width))
+		builder.WriteString("\n")
+	}
+
 	builder.WriteString(tableHeaderView(width, v.tab, *v.pod))
 
 	return builder.String()
