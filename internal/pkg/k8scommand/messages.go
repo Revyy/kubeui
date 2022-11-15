@@ -42,7 +42,7 @@ type GetPodMsg struct {
 }
 
 // NewGetPod creates a new GetPod message.
-func NewGetPodMsg(pod *v1.Pod, events []v1.Event, logs string) GetPodMsg {
+func NewGetPodMsg(pod *v1.Pod, events []v1.Event, logs map[string]string) GetPodMsg {
 	return GetPodMsg{Pod: &k8s.Pod{
 		Pod:    *pod,
 		Events: events,

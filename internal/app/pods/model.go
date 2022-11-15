@@ -84,10 +84,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		_, ok := m.views[msg.Id]
 
-		if !ok {
+		if !ok || msg.Initialize {
 			m.views[msg.Id] = m.initializeView(msg.Id)
 		}
 
+		// If this is the first view that was pushed then we set the previous view to the same as the new current view.
 		m.previousView = m.currentView
 		if m.previousView == "" {
 			m.previousView = msg.Id
@@ -113,6 +114,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.previousView = ""
 
 		if msg.Initialize {
+			m.views[m.currentView] = m.initializeView(m.currentView)
 			return m, m.views[m.currentView].Init(m.kubeuiContext)
 		}
 
@@ -161,5 +163,4 @@ func (m Model) Init() tea.Cmd {
 	return func() tea.Msg {
 		return Initialize{}
 	}
-	//return k8scommand.ListNamespaces(m.kubeuiContext.Kubectl)
 }

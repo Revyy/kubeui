@@ -24,7 +24,12 @@ func ExitView() tea.Cmd {
 
 // PushViewMsg is used to navigate to a new view.
 type PushViewMsg struct {
-	Id         string
+	// Id of the view.
+	// This is chosen by the application.
+	Id string
+	// Indicates whether view.Init should be called.
+	// The results of this depends on the view, but most of the time this will result in a reload of data.
+	// If going back to a previous view without any changes then you probably want to set this to false.
 	Initialize bool
 }
 
