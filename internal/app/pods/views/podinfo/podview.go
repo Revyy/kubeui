@@ -184,7 +184,7 @@ func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.V
 
 		// If the selected container has logs then update the logview.
 		if _, ok := v.pod.Logs[v.selectedContainer]; ok {
-			v.logsViewPort.SetContent(strings.Join(buildJSONLines(c.WindowWidth, v.pod.Logs[v.selectedContainer]), "\n\n"))
+			v.logsViewPort.SetContent(strings.Join(buildJSONLines(c.WindowWidth, v.pod.Logs[v.selectedContainer]), "\n\n") + "\n\n")
 			v.logsViewPort.GotoBottom()
 		}
 
@@ -204,7 +204,7 @@ func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.V
 
 		// If the selected container has logs then update the logview.
 		if _, ok := t.Pod.Logs[v.selectedContainer]; ok {
-			v.logsViewPort.SetContent(strings.Join(buildJSONLines(c.WindowWidth, t.Pod.Logs[v.selectedContainer]), "\n\n"))
+			v.logsViewPort.SetContent(strings.Join(buildJSONLines(c.WindowWidth, t.Pod.Logs[v.selectedContainer]), "\n\n") + "\n\n")
 		}
 
 		v.annotationsViewPort.SetContent(kubeui.RowsString(kubeui.StringMapTable(c.WindowWidth, "Key", "Value", v.pod.Pod.Annotations)))
@@ -231,6 +231,7 @@ func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.V
 func buildJSONLines(maxWidth int, jsonStr string) []string {
 
 	formatter := jsoncolor.NewFormatter()
+	formatter.StringMaxLength = maxWidth * 10
 
 	return slices.Filter(slices.Map(strings.Split(jsonStr, "\n"), func(str string) string {
 		var obj map[string]interface{}
