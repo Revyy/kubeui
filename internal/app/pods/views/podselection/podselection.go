@@ -174,7 +174,10 @@ func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.V
 	}
 
 	var cmd tea.Cmd
-	v.podTable, cmd = v.podTable.Update(msg.TeaMsg)
+	if v.initialized {
+		v.podTable, cmd = v.podTable.Update(msg.TeaMsg)
+	}
+
 	return c, v, cmd
 }
 
