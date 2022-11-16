@@ -1,9 +1,7 @@
 package podinfo
 
 import (
-	"encoding/json"
 	"fmt"
-	"kubeui/internal/pkg/jsoncolor"
 	"kubeui/internal/pkg/k8s"
 	"kubeui/internal/pkg/k8scommand"
 	"kubeui/internal/pkg/kubeui"
@@ -14,7 +12,6 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/life4/genesis/slices"
 	"github.com/muesli/reflow/wrap"
 	"k8s.io/utils/integer"
 )
@@ -87,6 +84,9 @@ type View struct {
 
 	tab  tab
 	tabs []string
+
+	// Indicates whether the pod has been loaded or not.
+	initialized bool
 
 	// List of container names.
 	selectedContainer string
@@ -167,7 +167,7 @@ func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.V
 		return c, v, kubeui.Exit()
 
 	case msg.MatchesKeyBindings(v.keys.ExitView):
-		return c, v, kubeui.PushView("pod_selection", false)
+		return c, v, kubeui.PopView(false)
 
 	case msg.MatchesKeyBindings(v.keys.Help) && !v.showFullHelp:
 		v.showFullHelp = true
@@ -191,7 +191,7 @@ func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.V
 
 		// If the selected container has logs then update the logview.
 		if _, ok := v.pod.Logs[v.selectedContainer]; ok {
-			v.logsViewPort.SetContent(strings.Join(buildJSONLines(v.windowWidth, v.pod.Logs[v.selectedContainer]), "\n\n") + "\n\n")
+			v.logsViewPort.SetContent(strings.Join(kubeui.JSONLines(v.windowWidth, v.pod.Logs[v.selectedContainer]), "\n\n"))
 			v.logsViewPort.GotoBottom()
 		}
 
@@ -201,6 +201,11 @@ func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.V
 	// Results
 	switch t := msg.TeaMsg.(type) {
 	case k8scommand.GetPodMsg:
+
+		if !v.initialized {
+			v.initialized = true
+		}
+
 		v.pod = t.Pod
 		v.containerNames = v.pod.ContainerNames()
 
@@ -216,7 +221,9 @@ func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.V
 
 	// Update viewports.
 	var cmd tea.Cmd
-	v, cmd = v.updateViewports(msg.TeaMsg)
+	if v.initialized {
+		v, cmd = v.updateViewports(msg.TeaMsg)
+	}
 
 	return c, v, cmd
 }
@@ -235,7 +242,7 @@ func (v View) updateViewportsAfterResize() View {
 	v.logsViewPort.Width = v.windowWidth
 
 	if _, ok := v.pod.Logs[v.selectedContainer]; ok {
-		v.logsViewPort.SetContent(strings.Join(buildJSONLines(v.windowWidth, v.pod.Logs[v.selectedContainer]), "\n\n") + "\n\n")
+		v.logsViewPort.SetContent(strings.Join(kubeui.JSONLines(v.windowWidth, v.pod.Logs[v.selectedContainer]), "\n\n"))
 	}
 
 	v.annotationsViewPort.SetContent(kubeui.RowsString(kubeui.StringMapTable(v.windowWidth, "Key", "Value", v.pod.Pod.Annotations)))
@@ -245,32 +252,6 @@ func (v View) updateViewportsAfterResize() View {
 	v.logsViewPort.GotoBottom()
 
 	return v
-}
-
-// buildJSONLines builds colored json log lines.
-func buildJSONLines(maxWidth int, jsonStr string) []string {
-
-	formatter := jsoncolor.NewFormatter()
-	formatter.StringMaxLength = maxWidth * 10
-
-	return slices.Filter(slices.Map(strings.Split(jsonStr, "\n"), func(str string) string {
-		var obj map[string]interface{}
-		err := json.Unmarshal([]byte(str), &obj)
-		if err != nil {
-			return wrap.String(str, maxWidth)
-		}
-
-		s, err := formatter.Marshal(obj)
-
-		if err != nil {
-			return wrap.String(str, maxWidth)
-		}
-
-		return wrap.String(string(s), maxWidth)
-	}), func(s string) bool {
-		return len(s) > 0
-	})
-
 }
 
 // updateViewports updates the currently active viewport.
@@ -352,24 +333,20 @@ func (v View) View(c kubeui.Context) string {
 	case ANNOTATIONS:
 		footer := footerView(v.windowWidth, v.annotationsViewPort)
 		builder.WriteString(v.annotationsViewPort.View())
-		//builder.WriteString(fmt.Sprintf("WindowHeight: %d, WindowWidth: %d, Header: %d, Footer: %d, Vph: %d, Vpw: %d", v.windowHeight, v.windowWidth, lipgloss.Height(header), lipgloss.Height(footer), v.annotationsViewPort.Height, v.annotationsViewPort.Width))
 		builder.WriteString(footer)
 
 	case LABELS:
 		footer := footerView(v.windowWidth, v.labelsViewPort)
-		//builder.WriteString(fmt.Sprintf("WindowHeight: %d, WindowWidth: %d, Header: %d, Footer: %d, Vph: %d, Vpw: %d", v.windowHeight, v.windowWidth, lipgloss.Height(header), lipgloss.Height(footer), v.labelsViewPort.Height, v.labelsViewPort.Width))
 		builder.WriteString(v.labelsViewPort.View())
 		builder.WriteString(footer)
 
 	case EVENTS:
 		footer := footerView(v.windowWidth, v.labelsViewPort)
-		//builder.WriteString(fmt.Sprintf("WindowHeight: %d, WindowWidth: %d, Header: %d, Footer: %d, Vph: %d, Vpw: %d", v.windowHeight, v.windowWidth, lipgloss.Height(header), lipgloss.Height(footer), v.eventsViewPort.Height, v.eventsViewPort.Width))
 		builder.WriteString(v.eventsViewPort.View())
 		builder.WriteString(footer)
 
 	case LOGS:
 		footer := footerView(v.windowWidth, v.logsViewPort)
-		//builder.WriteString(fmt.Sprintf("WindowHeight: %d, WindowWidth: %d, Header: %d, Footer: %d, Vph: %d, Vpw: %d", v.windowHeight, v.windowWidth, lipgloss.Height(header), lipgloss.Height(footer), v.logsViewPort.Height, v.logsViewPort.Width))
 		builder.WriteString(v.logsViewPort.View())
 		builder.WriteString(footer)
 	}
@@ -433,7 +410,7 @@ func footerView(width int, viewPort viewport.Model) string {
 
 	info := fmt.Sprintf("%3.f%%", viewPort.ScrollPercent()*100)
 	line := strings.Repeat("─", integer.IntMax(0, width-lipgloss.Width(info)))
-	return wrap.String("\n"+lipgloss.JoinHorizontal(lipgloss.Center, line, info), width)
+	return "[0m" + "\n" + wrap.String(lipgloss.JoinHorizontal(lipgloss.Center, line, info), width)
 }
 
 // Init initializes the view.
