@@ -26,21 +26,39 @@ func newKeyMap() *keyMap {
 }
 
 // New creates a new View.
-func New(message string) View {
+func New(message string, windowWidth, windowHeight int) View {
 	return View{
-		keys:    newKeyMap(),
-		message: message,
+		windowWidth:  windowWidth,
+		windowHeight: windowHeight,
+		keys:         newKeyMap(),
+		message:      message,
 	}
 }
 
 // View displays an error and allows the user to quit the app.
 type View struct {
+	windowWidth  int
+	windowHeight int
+
 	keys    *keyMap
 	message string
 }
 
 // Update handles new messages from the runtime.
 func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.View, tea.Cmd) {
+
+	if msg.IsWindowResize() {
+		windowResizeMsg, ok := msg.GetWindowResizeMsg()
+
+		if !ok {
+			return c, v, nil
+		}
+
+		v.windowHeight = windowResizeMsg.Height
+		v.windowWidth = windowResizeMsg.Width
+
+		return c, v, nil
+	}
 
 	if msg.MatchesKeyBindings(v.keys.Quit) {
 		return c, v, kubeui.Exit()
@@ -56,10 +74,10 @@ func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.V
 // View renders the ui of the view.
 func (v View) View(c kubeui.Context) string {
 	builder := strings.Builder{}
-	builder.WriteString(kubeui.ShortHelp(c.WindowWidth, []key.Binding{v.keys.Quit, v.keys.Continue}))
+	builder.WriteString(kubeui.ShortHelp(v.windowWidth, []key.Binding{v.keys.Quit, v.keys.Continue}))
 	builder.WriteString("\n\n")
 	builder.WriteString("An error occured\n\n")
-	builder.WriteString(kubeui.ErrorMessageStyle.Render(kubeui.LineBreak(v.message, c.WindowWidth)))
+	builder.WriteString(kubeui.ErrorMessageStyle.Render(kubeui.LineBreak(v.message, v.windowWidth)))
 
 	return builder.String()
 }

@@ -19,8 +19,6 @@ type View interface {
 
 // Context contains the context of the kubeui application.
 type Context struct {
-	WindowWidth  int
-	WindowHeight int
 	// object defining how the kubernetes config was located and put together.
 	// needed in order to modify the config files on disc.
 	ConfigAccess clientcmd.ConfigAccess
@@ -49,6 +47,18 @@ func (m Msg) IsError() (error, bool) {
 		return e, ok
 	}
 	return nil, false
+}
+
+// IsWindowResize checks if the msg contains a tea.WindowResizeMsg.
+func (m Msg) IsWindowResize() bool {
+	_, ok := m.TeaMsg.(tea.WindowSizeMsg)
+	return ok
+}
+
+// GetWindowResizeMsg tries to extract a tea.WindowSizeMsg from the msg.
+func (m Msg) GetWindowResizeMsg() (tea.WindowSizeMsg, bool) {
+	w, ok := m.TeaMsg.(tea.WindowSizeMsg)
+	return w, ok
 }
 
 // IsKeyMsg checks if the message contains a key click.
