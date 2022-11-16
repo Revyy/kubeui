@@ -37,14 +37,19 @@ func (v View) fullHelp() [][]key.Binding {
 }
 
 // New creates a new View.
-func New() View {
+func New(windowWidth, windowHeight int) View {
 	return View{
-		keys: newKeyMap(),
+		windowWidth:  windowWidth,
+		windowHeight: windowHeight,
+		keys:         newKeyMap(),
 	}
 }
 
 // View allows the user to select a namespace.
 type View struct {
+	windowHeight int
+	windowWidth  int
+
 	keys *keyMap
 
 	// Namespaces in current cluster.
@@ -62,6 +67,19 @@ type View struct {
 
 // Update handles new messages from the runtime.
 func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.View, tea.Cmd) {
+
+	if msg.IsWindowResize() {
+		windowResizeMsg, ok := msg.GetWindowResizeMsg()
+
+		if !ok {
+			return c, v, nil
+		}
+
+		v.windowHeight = windowResizeMsg.Height
+		v.windowWidth = windowResizeMsg.Width
+
+		return c, v, nil
+	}
 
 	if msg.IsKeyMsg() && v.showFullHelp {
 		v.showFullHelp = false
@@ -124,15 +142,15 @@ func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.V
 func (v View) View(c kubeui.Context) string {
 
 	if v.showFullHelp {
-		return kubeui.FullHelp(c.WindowWidth, v.fullHelp())
+		return kubeui.FullHelp(v.windowWidth, v.fullHelp())
 	}
 
 	builder := strings.Builder{}
 
-	builder.WriteString(kubeui.ShortHelp(c.WindowWidth, []key.Binding{v.keys.Help, v.keys.Quit, v.keys.ExitView}))
+	builder.WriteString(kubeui.ShortHelp(v.windowWidth, []key.Binding{v.keys.Help, v.keys.Quit, v.keys.ExitView}))
 	builder.WriteString("\n\n")
 
-	statusBar := kubeui.StatusBar(c.WindowWidth-1, " ", fmt.Sprintf("Context: %s", c.ApiConfig.CurrentContext))
+	statusBar := kubeui.StatusBar(v.windowWidth-1, " ", fmt.Sprintf("Context: %s", c.ApiConfig.CurrentContext))
 	builder.WriteString(statusBar + "\n")
 
 	builder.WriteString(v.namespaceTable.View())

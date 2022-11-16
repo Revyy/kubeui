@@ -50,16 +50,21 @@ func (v View) fullHelp() [][]key.Binding {
 }
 
 // New creates a new View.
-func New() View {
+func New(windowWidth, windowHeight int) View {
 	return View{
-		keys:    newKeyMap(),
-		loading: true,
+		windowWidth:  windowWidth,
+		windowHeight: windowHeight,
+		keys:         newKeyMap(),
+		loading:      true,
 	}
 }
 
 // View is used to select a pod.
 type View struct {
 	keys *keyMap
+
+	windowWidth  int
+	windowHeight int
 
 	// Pods in current namespace.
 	pods []v1.Pod
@@ -85,6 +90,19 @@ func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.V
 
 	if msg.IsKeyMsg() && v.showFullHelp {
 		v.showFullHelp = false
+		return c, v, nil
+	}
+
+	if msg.IsWindowResize() {
+		windowResizeMsg, ok := msg.GetWindowResizeMsg()
+
+		if !ok {
+			return c, v, nil
+		}
+
+		v.windowHeight = windowResizeMsg.Height
+		v.windowWidth = windowResizeMsg.Width
+
 		return c, v, nil
 	}
 
@@ -194,12 +212,12 @@ func podTableContents(pods []v1.Pod) ([]*columntable.Column, []*columntable.Row)
 func (v View) View(c kubeui.Context) string {
 
 	if v.showFullHelp {
-		return kubeui.FullHelp(c.WindowWidth, v.fullHelp())
+		return kubeui.FullHelp(v.windowWidth, v.fullHelp())
 	}
 
 	builder := strings.Builder{}
 
-	builder.WriteString(kubeui.ShortHelp(c.WindowWidth, []key.Binding{v.keys.Help, v.keys.Quit, v.keys.SelectNamespace, v.keys.Refresh}))
+	builder.WriteString(kubeui.ShortHelp(v.windowWidth, []key.Binding{v.keys.Help, v.keys.Quit, v.keys.SelectNamespace, v.keys.Refresh}))
 	builder.WriteString("\n\n")
 
 	if v.activeDialog != nil {
@@ -207,7 +225,7 @@ func (v View) View(c kubeui.Context) string {
 		return builder.String()
 	}
 
-	podViewStatusBar := kubeui.StatusBar(c.WindowWidth-1, " ", fmt.Sprintf("Context: %s  Namespace: %s", c.ApiConfig.CurrentContext, c.Namespace))
+	podViewStatusBar := kubeui.StatusBar(v.windowWidth-1, " ", fmt.Sprintf("Context: %s  Namespace: %s", c.ApiConfig.CurrentContext, c.Namespace))
 	builder.WriteString(podViewStatusBar + "\n")
 
 	if v.loading {
