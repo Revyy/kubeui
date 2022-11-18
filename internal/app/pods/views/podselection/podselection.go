@@ -6,7 +6,7 @@ import (
 	"kubeui/internal/pkg/component/columntable"
 	"kubeui/internal/pkg/component/confirm"
 	"kubeui/internal/pkg/k8s"
-	"kubeui/internal/pkg/k8scommand"
+	"kubeui/internal/pkg/k8smsg"
 	"kubeui/internal/pkg/kubeui"
 	"strings"
 
@@ -120,12 +120,19 @@ func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.V
 	}
 
 	if msg.MatchesKeyBindings(v.keys.Refresh) {
-		return c, v, k8scommand.ListPods(c.Kubectl, c.Namespace)
+
+		podList, err := c.K8sClient.ListPods(c.Namespace)
+
+		if err != nil {
+			return c, v, kubeui.Error(err)
+		}
+
+		return c, v, kubeui.GenericCmd(k8smsg.NewListPodsMsg(podList))
 	}
 
 	// Results
 	switch t := msg.TeaMsg.(type) {
-	case k8scommand.ListPodsMsg:
+	case k8smsg.ListPodsMsg:
 		v.pods = t.PodList.Items
 		podColumns, podRows := podTableContents(v.pods)
 		var cmd tea.Cmd
@@ -155,15 +162,31 @@ func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.V
 		return c, v, nil
 
 	// When a pod is actually deleted we refresh the pod list by returning the listPods command.
-	case k8scommand.PodDeletedMsg:
-		return c, v, k8scommand.ListPods(c.Kubectl, c.Namespace)
+	case k8smsg.PodDeletedMsg:
+
+		podList, err := c.K8sClient.ListPods(c.Namespace)
+
+		if err != nil {
+			return c, v, kubeui.Error(err)
+		}
+
+		return c, v, kubeui.GenericCmd(k8smsg.NewListPodsMsg(podList))
 
 	case confirm.ButtonPress:
 		v.activeDialog = nil
-		if t.Pressed.Desc == "Yes" {
-			return c, v, k8scommand.DeletePod(c.Kubectl, c.Namespace, t.Pressed.Id)
+
+		if t.Pressed.Desc != "Yes" {
+			return c, v, nil
 		}
-		return c, v, nil
+
+		name, err := c.K8sClient.DeletePod(c.Namespace, t.Pressed.Id)
+
+		if err != nil {
+			return c, v, kubeui.Error(err)
+		}
+
+		return c, v, kubeui.GenericCmd(k8smsg.NewPodDeletedMsg(name))
+
 	}
 
 	// If we have an active dialog.
@@ -228,7 +251,7 @@ func (v View) View(c kubeui.Context) string {
 		return builder.String()
 	}
 
-	podViewStatusBar := kubeui.StatusBar(v.windowWidth-1, " ", fmt.Sprintf("Context: %s  Namespace: %s", c.ApiConfig.CurrentContext, c.Namespace))
+	podViewStatusBar := kubeui.StatusBar(v.windowWidth-1, " ", fmt.Sprintf("Context: %s  Namespace: %s", c.ContextClient.CurrentContext(), c.Namespace))
 	builder.WriteString(podViewStatusBar + "\n")
 
 	if v.loading {
@@ -244,7 +267,14 @@ func (v View) View(c kubeui.Context) string {
 
 // Init initializes the view.
 func (v View) Init(c kubeui.Context) tea.Cmd {
-	return k8scommand.ListPods(c.Kubectl, c.Namespace)
+
+	podList, err := c.K8sClient.ListPods(c.Namespace)
+
+	if err != nil {
+		return kubeui.Error(err)
+	}
+
+	return kubeui.GenericCmd(k8smsg.NewListPodsMsg(podList))
 }
 
 // Destroy is called before a view is removed as the active view in the application.

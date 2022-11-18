@@ -102,3 +102,17 @@ func HorizontalSelectList(items []string, selectedItem string, maxWidth int) str
 
 	return wrap.String(builder.String(), maxWidth)
 }
+
+// StatusBar returns a string representing a status bar.
+// Values are printed with separator in between.
+func StatusBar(width int, separator string, values ...string) string {
+	statusBar := StatusBarStyle.Width(width)
+
+	builder := &strings.Builder{}
+
+	for _, v := range values {
+		builder.WriteString(fmt.Sprintf("%s%s", v, separator))
+	}
+
+	return statusBar.Render(lipgloss.NewStyle().Width(width).Render(strings.TrimRight(builder.String(), separator)))
+}

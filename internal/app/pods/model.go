@@ -9,9 +9,6 @@ import (
 	"kubeui/internal/pkg/kubeui"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/client-go/tools/clientcmd/api"
 )
 
 // Model defines the base Model of the application.
@@ -33,13 +30,12 @@ type Model struct {
 }
 
 // NewModel creates a new model.
-func NewModel(rawConfig api.Config, configAccess clientcmd.ConfigAccess, clientSet *kubernetes.Clientset) *Model {
+func NewModel(contextClient kubeui.ContextClient, k8sClient kubeui.K8sClient) *Model {
 	return &Model{
 		kubeuiContext: kubeui.Context{
-			ConfigAccess: configAccess,
-			Kubectl:      clientSet,
-			Namespace:    "default",
-			ApiConfig:    rawConfig,
+			ContextClient: contextClient,
+			K8sClient:     k8sClient,
+			Namespace:     "default",
 		},
 		views:        map[string]kubeui.View{},
 		initializing: true,
@@ -53,7 +49,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Global Keypresses and app messages.
 	switch msgT := msg.(type) {
 	case Initialize:
-		currentContext, ok := m.kubeuiContext.ApiConfig.Contexts[m.kubeuiContext.ApiConfig.CurrentContext]
+		currentContext, ok := m.kubeuiContext.ContextClient.CurrentApiContext()
 
 		if !ok {
 			return m, kubeui.Error(fmt.Errorf("invalid context"))

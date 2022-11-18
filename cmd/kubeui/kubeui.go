@@ -44,9 +44,9 @@ func main() {
 
 	switch args.Program {
 	case "cxs":
-		m = cxs.NewModel(rawConfig, configAccess)
+		m = cxs.NewModel(k8s.NewContextClient(configAccess, rawConfig))
 	case "pods":
-		m = pods.NewModel(rawConfig, configAccess, clientSet)
+		m = pods.NewModel(k8s.NewContextClient(configAccess, rawConfig), k8s.NewK8sClient(clientSet))
 	default:
 		log.Fatalf("no command called %s", args.Program)
 	}

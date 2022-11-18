@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"kubeui/internal/pkg/component/confirm"
 	"kubeui/internal/pkg/component/searchtable"
-	"kubeui/internal/pkg/k8s"
+	"kubeui/internal/pkg/kubeui"
 	"sort"
 	"strings"
 
@@ -12,8 +12,6 @@ import (
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
-	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/client-go/tools/clientcmd/api"
 )
 
 // appKeyMap defines the keys that are handled at the top level in the application.
@@ -39,15 +37,12 @@ func newAppKeyMap() *appKeyMap {
 
 // Model defines the base Model of the application.
 type Model struct {
+
+	//
+	contextClient kubeui.ContextClient
+
 	// application level keybindings
 	keys *appKeyMap
-
-	// kubernetes config object.
-	config api.Config
-
-	// object defining how the kubernetes config was located and put together.
-	// needed in order to modify the config files on disc.
-	configAccess clientcmd.ConfigAccess
 
 	// searchtable used to select and delete contexts.
 	table searchtable.Model
@@ -64,24 +59,18 @@ type Model struct {
 }
 
 // NewModel creates a new cxs model.
-func NewModel(rawConfig api.Config, configAccess clientcmd.ConfigAccess) *Model {
+func NewModel(contextClient kubeui.ContextClient) *Model {
 
-	contexts := []string{}
-
-	for c := range rawConfig.Contexts {
-		contexts = append(contexts, c)
-	}
-
+	contexts := contextClient.Contexts()
 	sort.Strings(contexts)
 
-	table := searchtable.New(contexts, 10, rawConfig.CurrentContext, true, searchtable.Options{SingularItemName: "context"})
+	table := searchtable.New(contexts, 10, contextClient.CurrentContext(), true, searchtable.Options{SingularItemName: "context"})
 
 	return &Model{
-		keys:         newAppKeyMap(),
-		config:       rawConfig,
-		configAccess: configAccess,
-		table:        table,
-		help:         help.New(),
+		keys:          newAppKeyMap(),
+		contextClient: contextClient,
+		table:         table,
+		help:          help.New(),
 	}
 }
 
@@ -126,7 +115,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 
 	case searchtable.Selection:
-		err := k8s.SwitchContext(msg.Value, "", m.configAccess, m.config)
+		err := m.contextClient.SwitchContext(msg.Value, "")
 		if err != nil {
 			return m, func() tea.Msg { return err }
 		}
@@ -145,14 +134,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
-		err := deleteContext(msg.Pressed.Id, m.configAccess, m.config)
+		err := deleteContext(msg.Pressed.Id, m.contextClient)
 
 		if err != nil {
 			return m, tea.Quit
 		}
 
 		items := []string{}
-		for k := range m.config.Contexts {
+		for _, k := range m.contextClient.Contexts() {
 			if k != msg.Pressed.Id {
 				items = append(items, k)
 			}
@@ -179,20 +168,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // deleteContext deletes a kubernetes context and the corresponding cluster entry and user entry.
-func deleteContext(kubeCtx string, configAccess clientcmd.ConfigAccess, config api.Config) error {
-	err := k8s.DeleteContext(kubeCtx, configAccess, config)
+func deleteContext(kubeCtx string, contextClient kubeui.ContextClient) error {
+	err := contextClient.DeleteContext(kubeCtx)
 
 	if err != nil {
 		return err
 	}
 
-	err = k8s.DeleteClusterEntry(kubeCtx, configAccess, config)
+	err = contextClient.DeleteClusterEntry(kubeCtx)
 
 	if err != nil {
 		return err
 	}
 
-	err = k8s.DeleteUser(kubeCtx, configAccess, config)
+	err = contextClient.DeleteUser(kubeCtx)
 
 	return err
 }

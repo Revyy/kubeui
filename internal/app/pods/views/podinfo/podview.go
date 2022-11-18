@@ -3,7 +3,7 @@ package podinfo
 import (
 	"fmt"
 	"kubeui/internal/pkg/k8s"
-	"kubeui/internal/pkg/k8scommand"
+	"kubeui/internal/pkg/k8smsg"
 	"kubeui/internal/pkg/kubeui"
 	"strconv"
 	"strings"
@@ -180,7 +180,14 @@ func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.V
 		v = v.moveTabRight()
 		return c, v, nil
 	case msg.MatchesKeyBindings(v.keys.Refresh):
-		return c, v, k8scommand.GetPod(c.Kubectl, c.Namespace, c.SelectedPod)
+
+		pod, err := c.K8sClient.GetPod(c.Namespace, c.SelectedPod)
+
+		if err != nil {
+			return c, v, kubeui.Error(err)
+		}
+
+		return c, v, kubeui.GenericCmd(k8smsg.NewGetPodMsg(pod))
 	case msg.MatchesKeyBindings(v.keys.NumberChoice) && v.tab == LOGS:
 
 		v, err := v.selectContainer(msg)
@@ -200,7 +207,7 @@ func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.V
 
 	// Results
 	switch t := msg.TeaMsg.(type) {
-	case k8scommand.GetPodMsg:
+	case k8smsg.GetPodMsg:
 
 		if !v.initialized {
 			v.initialized = true
@@ -415,7 +422,14 @@ func footerView(width int, viewPort viewport.Model) string {
 
 // Init initializes the view.
 func (v View) Init(c kubeui.Context) tea.Cmd {
-	return k8scommand.GetPod(c.Kubectl, c.Namespace, c.SelectedPod)
+
+	pod, err := c.K8sClient.GetPod(c.Namespace, c.SelectedPod)
+
+	if err != nil {
+		return kubeui.Error(err)
+	}
+
+	return kubeui.GenericCmd(k8smsg.NewGetPodMsg(pod))
 }
 
 // Destroy is called before a view is removed as the active view in the application.
