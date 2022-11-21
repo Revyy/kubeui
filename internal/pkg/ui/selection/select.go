@@ -30,7 +30,7 @@ func Tabs(cursor, maxWidth int, headers []string) string {
 		tabsBuilder.WriteString(header + " ")
 	}
 
-	return lipgloss.NewStyle().Width(maxWidth).Render(tabsBuilder.String())
+	return wrap.String(tabsBuilder.String(), maxWidth)
 }
 
 // HorizontalList renders a horizontal list with an item highlighted as selected.
