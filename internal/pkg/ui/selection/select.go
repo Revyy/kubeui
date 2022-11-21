@@ -16,6 +16,11 @@ var unselectedStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Ligh
 
 // Tabs renders a tab select.
 func Tabs(cursor, maxWidth int, headers []string) string {
+
+	if maxWidth == 0 {
+		return ""
+	}
+
 	var tabsBuilder strings.Builder
 
 	// Iterate over the items in the current page and print them out.
@@ -30,11 +35,15 @@ func Tabs(cursor, maxWidth int, headers []string) string {
 		tabsBuilder.WriteString(header + " ")
 	}
 
-	return wrap.String(tabsBuilder.String(), maxWidth)
+	return wrap.String(strings.Trim(tabsBuilder.String(), " "), maxWidth)
 }
 
 // HorizontalList renders a horizontal list with an item highlighted as selected.
 func HorizontalList(items []string, selectedItem string, maxWidth int) string {
+
+	if maxWidth == 0 || len(items) == 0 {
+		return ""
+	}
 
 	builder := strings.Builder{}
 
@@ -46,5 +55,5 @@ func HorizontalList(items []string, selectedItem string, maxWidth int) string {
 		builder.WriteString(unselectedStyle.Render(fmt.Sprintf("[%d] %s", i+1, item)) + " ")
 	}
 
-	return wrap.String(builder.String(), maxWidth)
+	return wrap.String(strings.Trim(builder.String(), " "), maxWidth)
 }
