@@ -1,10 +1,10 @@
 package errorinfo
 
 import (
-	"kubeui/internal/pkg/component/strui"
 	"kubeui/internal/pkg/kubeui"
 	"kubeui/internal/pkg/styles"
 	"kubeui/internal/pkg/ui/help"
+	"kubeui/internal/pkg/ui/strui"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"

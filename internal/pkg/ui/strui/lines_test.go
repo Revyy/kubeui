@@ -1,7 +1,7 @@
 package strui_test
 
 import (
-	"kubeui/internal/pkg/strui"
+	"kubeui/internal/pkg/ui/strui"
 	"testing"
 )
 
