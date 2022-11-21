@@ -5,6 +5,13 @@ import (
 	"testing"
 )
 
+var expected = `Test: 10 Test2: value Test3: val
+ue2
+────────────────────────────────
+───`
+
+// This test is mainly here as a regression test.
+
 func TestStatusBar(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -14,12 +21,12 @@ func TestStatusBar(t *testing.T) {
 	}{
 		{
 			"Basic statusbar",
-			30,
+			32,
 			[]string{"Test: 10",
 				"Test2: value",
 				"Test3: value2",
 			},
-			"Test: 10 Test2: value Test3:  \nvalue2                        \n──────────────────────────────",
+			expected,
 		},
 	}
 	for _, tt := range tests {
