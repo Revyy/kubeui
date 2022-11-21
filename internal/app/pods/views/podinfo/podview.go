@@ -256,9 +256,9 @@ func (v View) updateViewportsAfterResize() View {
 		v.logsViewPort.SetContent(strings.Join(jsoncolor.JSONLines(v.windowWidth, v.pod.Logs[v.selectedContainer]), "\n\n"))
 	}
 
-	v.annotationsViewPort.SetContent(table.RowsString(table.StringMapColumnsAndRows(v.windowWidth, "Key", "Value", v.pod.Pod.Annotations)))
-	v.labelsViewPort.SetContent(table.RowsString(table.StringMapColumnsAndRows(v.windowWidth, "Key", "Value", v.pod.Pod.Labels)))
-	v.eventsViewPort.SetContent(table.RowsString(EventColumnsAndRows(v.windowWidth, v.pod.Events)))
+	v.annotationsViewPort.SetContent(table.RowsToString(stringMapColumnsAndRows(v.windowWidth, "Key", "Value", v.pod.Pod.Annotations)))
+	v.labelsViewPort.SetContent(table.RowsToString(stringMapColumnsAndRows(v.windowWidth, "Key", "Value", v.pod.Pod.Labels)))
+	v.eventsViewPort.SetContent(table.RowsToString(eventColumnsAndRows(v.windowWidth, v.pod.Events)))
 
 	v.logsViewPort.GotoBottom()
 
@@ -337,8 +337,8 @@ func (v View) View(c kubeui.Context) string {
 
 	switch v.tab {
 	case STATUS:
-		columns, row := PodStatusColumnsAndRows(v.pod.Pod)
-		builder.WriteString(table.RowsString(columns, []*table.DataRow{row}))
+		columns, row := podStatusColumnsAndRows(v.pod.Pod)
+		builder.WriteString(table.RowsToString(columns, []table.DataRow{row}))
 		return builder.String()
 
 	case ANNOTATIONS:
@@ -398,22 +398,22 @@ func (v View) headerView(width int, forTab tab) string {
 // Producing table headers seperately from the rows allows us to let the content scroll past the headers without hiding them.
 func tableHeaderView(width int, t tab, pod k8s.Pod) string {
 
-	var columns []*table.DataColumn
+	var columns []table.DataColumn
 	switch t {
 	case STATUS:
-		columns, _ = PodStatusColumnsAndRows(pod.Pod)
+		columns, _ = podStatusColumnsAndRows(pod.Pod)
 	case ANNOTATIONS:
-		columns, _ = table.StringMapColumnsAndRows(width, "Key", "Value", pod.Pod.Annotations)
+		columns, _ = stringMapColumnsAndRows(width, "Key", "Value", pod.Pod.Annotations)
 	case LABELS:
-		columns, _ = table.StringMapColumnsAndRows(width, "Key", "Value", pod.Pod.Labels)
+		columns, _ = stringMapColumnsAndRows(width, "Key", "Value", pod.Pod.Labels)
 	case EVENTS:
-		columns, _ = EventColumnsAndRows(width, pod.Events)
+		columns, _ = eventColumnsAndRows(width, pod.Events)
 	case LOGS:
 		return strings.Repeat("─", width) + "\n"
 	}
 
 	line := strings.Repeat("─", width)
-	return lipgloss.NewStyle().Width(width).Render(table.ColumnsString(columns)) + "\n" + lipgloss.JoinHorizontal(lipgloss.Center, line) + "\n\n"
+	return lipgloss.NewStyle().Width(width).Render(table.ColumnsToString(columns)) + "\n" + lipgloss.JoinHorizontal(lipgloss.Center, line) + "\n\n"
 }
 
 // footerView creates the footerView which contains information about how far the user has scrolled through the viewPort.
