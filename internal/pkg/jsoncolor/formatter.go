@@ -27,6 +27,7 @@ const endArray = "]"
 const emptyMap = startMap + endMap
 const emptyArray = startArray + endArray
 
+// Formatter provides configuration and marshaling of json objects into colored json strings.
 type Formatter struct {
 	ColorSet
 	StringMaxLength int
@@ -34,6 +35,7 @@ type Formatter struct {
 	RawStrings      bool
 }
 
+// ColorSet defined the color of the json data types.
 type ColorSet struct {
 	KeyColor    lipgloss.Color
 	StringColor lipgloss.Color
@@ -62,6 +64,7 @@ func lightColorSet() ColorSet {
 	}
 }
 
+// NewFormatter creates a new formatter.
 func NewFormatter() *Formatter {
 
 	colorSet := defaultColorSet()
@@ -94,6 +97,7 @@ func (f *Formatter) writeObjSep(buf *bytes.Buffer) {
 	}
 }
 
+// Marshal marshals the object into a colored json string.
 func (f *Formatter) Marshal(jsonObj interface{}) ([]byte, error) {
 	buffer := bytes.Buffer{}
 	f.marshalValue(jsonObj, &buffer, initialDepth)
@@ -185,7 +189,7 @@ func (f *Formatter) marshalString(str string, buf *bytes.Buffer) {
 	buf.WriteString(f.sprintColor(f.StringColor, str))
 }
 
-// Marshal JSON data with default options
+// Marshal marshals JSON data with default options.
 func Marshal(jsonObj interface{}) ([]byte, error) {
 	return NewFormatter().Marshal(jsonObj)
 }
