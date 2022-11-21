@@ -1,3 +1,4 @@
+// Package jsoncolor provides a way to render a jsonString with syntax highlighting in the terminal.
 package jsoncolor
 
 import (
@@ -9,6 +10,7 @@ import (
 )
 
 // JSONLines builds colored json log lines.
+// maxWidth defines the max width of a line in the result string before a linebreak is added.
 func JSONLines(maxWidth int, jsonStr string) []string {
 
 	formatter := NewFormatter()

@@ -1,3 +1,4 @@
+// Package k8smsg wraps kubernetes data types in message types suitable to be consumed by a kubeui program.
 package k8smsg
 
 import (

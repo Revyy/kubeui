@@ -1,3 +1,5 @@
+// Package statusbar provides a stateless component representing a status bar.
+// The status bar should be used to provide metadata that is useful to the user for a specific view.
 package statusbar
 
 import (

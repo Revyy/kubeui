@@ -1,3 +1,6 @@
+// Package selection provides functions to render ui components used for selection.
+// The logic of actually selecting something and keeping track of which item is selected is not provided by this package.
+// The selection package simply provides the tools to render such ui components.
 package selection
 
 import (
@@ -12,9 +15,11 @@ import (
 var selectedStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "235", Dark: "252"})
 
 // UnselectedStyle is used for unselected items.
-var unselectedStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "250", Dark: "238"})
+var unselectedStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "252", Dark: "235"})
 
 // Tabs renders a tab select.
+// cursor indicates the selected index in headers.
+// The selected header is rendered using a highlighted color style and will be underlined.
 func Tabs(cursor, maxWidth int, headers []string) string {
 
 	if maxWidth == 0 {
@@ -39,6 +44,7 @@ func Tabs(cursor, maxWidth int, headers []string) string {
 }
 
 // HorizontalList renders a horizontal list with an item highlighted as selected.
+// Example: [1] Item 1 [2] Item 2 [3] Item 3.
 func HorizontalList(items []string, selectedItem string, maxWidth int) string {
 
 	if maxWidth == 0 || len(items) == 0 {

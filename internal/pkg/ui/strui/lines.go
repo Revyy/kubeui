@@ -1,3 +1,4 @@
+// Package strui provides functions for working with strings meant to be rendered as part of an ui.
 package strui
 
 import (
