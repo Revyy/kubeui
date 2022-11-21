@@ -2,6 +2,7 @@ package podinfo
 
 import (
 	"fmt"
+	"kubeui/internal/pkg/component/help"
 	"kubeui/internal/pkg/k8s"
 	"kubeui/internal/pkg/k8smsg"
 	"kubeui/internal/pkg/kubeui"
@@ -320,7 +321,7 @@ func (v View) selectContainer(msg kubeui.Msg) (View, error) {
 func (v View) View(c kubeui.Context) string {
 
 	if v.showFullHelp {
-		return kubeui.FullHelp(v.windowWidth, v.fullHelp())
+		return help.Full(v.windowWidth, v.fullHelp())
 	}
 
 	builder := strings.Builder{}
@@ -368,7 +369,7 @@ func (v View) headerView(width int, forTab tab) string {
 
 	builder := strings.Builder{}
 
-	builder.WriteString(kubeui.ShortHelp(width, []key.Binding{
+	builder.WriteString(help.Short(width, []key.Binding{
 		v.keys.Help,
 		v.keys.Quit,
 		v.keys.Refresh,

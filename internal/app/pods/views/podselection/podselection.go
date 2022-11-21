@@ -5,6 +5,7 @@ import (
 
 	"kubeui/internal/pkg/component/columntable"
 	"kubeui/internal/pkg/component/confirm"
+	"kubeui/internal/pkg/component/help"
 	"kubeui/internal/pkg/k8s"
 	"kubeui/internal/pkg/k8smsg"
 	"kubeui/internal/pkg/kubeui"
@@ -238,12 +239,12 @@ func podTableContents(pods []v1.Pod) ([]*columntable.Column, []*columntable.Row)
 func (v View) View(c kubeui.Context) string {
 
 	if v.showFullHelp {
-		return kubeui.FullHelp(v.windowWidth, v.fullHelp())
+		return help.Full(v.windowWidth, v.fullHelp())
 	}
 
 	builder := strings.Builder{}
 
-	builder.WriteString(kubeui.ShortHelp(v.windowWidth, []key.Binding{v.keys.Help, v.keys.Quit, v.keys.SelectNamespace, v.keys.Refresh}))
+	builder.WriteString(help.Short(v.windowWidth, []key.Binding{v.keys.Help, v.keys.Quit, v.keys.SelectNamespace, v.keys.Refresh}))
 	builder.WriteString("\n\n")
 
 	if v.activeDialog != nil {

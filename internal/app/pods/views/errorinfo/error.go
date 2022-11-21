@@ -1,6 +1,7 @@
 package errorinfo
 
 import (
+	"kubeui/internal/pkg/component/help"
 	"kubeui/internal/pkg/kubeui"
 	"strings"
 
@@ -74,7 +75,7 @@ func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.V
 // View renders the ui of the view.
 func (v View) View(c kubeui.Context) string {
 	builder := strings.Builder{}
-	builder.WriteString(kubeui.ShortHelp(v.windowWidth, []key.Binding{v.keys.Quit, v.keys.Continue}))
+	builder.WriteString(help.Short(v.windowWidth, []key.Binding{v.keys.Quit, v.keys.Continue}))
 	builder.WriteString("\n\n")
 	builder.WriteString("An error occured\n\n")
 	builder.WriteString(kubeui.ErrorMessageStyle.Render(kubeui.LineBreak(v.message, v.windowWidth)))

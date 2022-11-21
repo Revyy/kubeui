@@ -2,28 +2,12 @@ package kubeui
 
 import (
 	"fmt"
-	"kubeui/internal/pkg/component/help"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/life4/genesis/slices"
 	"github.com/muesli/reflow/wrap"
 )
-
-// ShortHelp returns a short help view.
-func ShortHelp(width int, keys []key.Binding) string {
-	h := help.New()
-	h.Width = width
-	return h.ShortHelpView(keys)
-}
-
-// FullHelp returns a full help view.
-func FullHelp(width int, keys [][]key.Binding) string {
-	h := help.New()
-	h.Width = width
-	return h.FullHelpView(keys)
-}
 
 // ColumnTable converts a set of columns and rows to an aligned table string
 func ColumnTable(columns []*DataColumn, rows []*DataRow) string {

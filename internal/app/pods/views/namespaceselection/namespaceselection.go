@@ -2,6 +2,7 @@ package namespaceselection
 
 import (
 	"fmt"
+	"kubeui/internal/pkg/component/help"
 	"kubeui/internal/pkg/component/searchtable"
 	"kubeui/internal/pkg/k8smsg"
 	"kubeui/internal/pkg/kubeui"
@@ -141,12 +142,12 @@ func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.V
 func (v View) View(c kubeui.Context) string {
 
 	if v.showFullHelp {
-		return kubeui.FullHelp(v.windowWidth, v.fullHelp())
+		return help.Full(v.windowWidth, v.fullHelp())
 	}
 
 	builder := strings.Builder{}
 
-	builder.WriteString(kubeui.ShortHelp(v.windowWidth, []key.Binding{v.keys.Help, v.keys.Quit, v.keys.ExitView}))
+	builder.WriteString(help.Short(v.windowWidth, []key.Binding{v.keys.Help, v.keys.Quit, v.keys.ExitView}))
 	builder.WriteString("\n\n")
 
 	statusBar := kubeui.StatusBar(v.windowWidth-1, " ", fmt.Sprintf("Context: %s", c.ContextClient.CurrentContext()))
