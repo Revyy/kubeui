@@ -5,10 +5,9 @@ import (
 	"kubeui/internal/pkg/component/confirm"
 	"kubeui/internal/pkg/component/searchtable"
 	"kubeui/internal/pkg/kubeui"
+	"kubeui/internal/pkg/ui/help"
 	"sort"
 	"strings"
-
-	"kubeui/internal/pkg/ui/help"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -54,8 +53,8 @@ type Model struct {
 
 	// Windows size
 	windowSize tea.WindowSizeMsg
-	// Help
-	help help.Model
+
+	showFullHelp bool
 }
 
 // NewModel creates a new cxs model.
@@ -70,7 +69,6 @@ func NewModel(contextClient kubeui.ContextClient) *Model {
 		keys:          newAppKeyMap(),
 		contextClient: contextClient,
 		table:         table,
-		help:          help.New(),
 	}
 }
 
@@ -98,7 +96,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		// If we set a width on the help menu it can it can gracefully truncate
 		// its view as needed.
-		m.help.Width = msg.Width
 		m.windowSize = msg
 		return m, nil
 
@@ -107,7 +104,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keys.quit):
 			return m, tea.Quit
 		case key.Matches(msg, m.keys.help):
-			m.help.ShowAll = !m.help.ShowAll
+			m.showFullHelp = !m.showFullHelp
 			return m, nil
 		}
 
@@ -192,7 +189,12 @@ func (m Model) View() string {
 
 	builder := strings.Builder{}
 
-	helpView := m.help.View(m)
+	helpView := help.Short(m.windowSize.Width, m.ShortHelp())
+
+	if m.showFullHelp {
+		helpView = help.Full(m.windowSize.Width, m.FullHelp())
+	}
+
 	builder.WriteString(helpView)
 	builder.WriteString("\n\n")
 
