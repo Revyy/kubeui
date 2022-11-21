@@ -2,7 +2,7 @@ package kubeui
 
 import (
 	"fmt"
-	"kubeui/internal/pkg/kubeui/help"
+	"kubeui/internal/pkg/component/help"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
