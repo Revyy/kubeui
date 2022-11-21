@@ -1,3 +1,4 @@
+// Package styles contains lipgloss styles that can be reused.
 package styles
 
 import "github.com/charmbracelet/lipgloss"
