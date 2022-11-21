@@ -3,6 +3,8 @@ package strui_test
 import (
 	"kubeui/internal/pkg/ui/strui"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestLineBreak(t *testing.T) {
@@ -34,15 +36,20 @@ func TestTruncate(t *testing.T) {
 		maxLen int
 		want   string
 	}{
-		{"one word that is too long", "abc123", 5, "ab..."},
-		{"a sentence that will be cut off", "a sentence that will be cut off", 13, "a sentence..."},
-		{"a sentence that will be returned", "a sentence that will be returned", 300, "a sentence that will be returned"},
+		{"maxlen smaller than 4 should give empty string: 3", "abc123", 3, ""},
+		{"maxlen smaller than 4 should give empty string: 2", "abc123", 2, ""},
+		{"maxlen smaller than 4 should give empty string: 1", "abc123", 1, ""},
+		{"maxlen smaller than 4 should give empty string: 0", "abc123", 0, ""},
+		{"maxlen smaller than 4 should give empty string: -1", "abc123", -1, ""},
+
+		{"Should truncate one word that is too long", "abc123", 5, "ab..."},
+		{"Should cut off sentence", "a sentence that will be cut off", 13, "a sentence..."},
+		{"Should not truncate sentence", "a sentence that will be returned", 300, "a sentence that will be returned"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := strui.Truncate(tt.text, tt.maxLen); got != tt.want {
-				t.Errorf("Truncate() = %v, want %v", got, tt.want)
-			}
+			got := strui.Truncate(tt.text, tt.maxLen)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
