@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"kubeui/internal/pkg/component/help"
+	"kubeui/internal/pkg/ui/help"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"

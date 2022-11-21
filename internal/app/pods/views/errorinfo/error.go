@@ -1,8 +1,10 @@
 package errorinfo
 
 import (
-	"kubeui/internal/pkg/component/help"
+	"kubeui/internal/pkg/component/strui"
 	"kubeui/internal/pkg/kubeui"
+	"kubeui/internal/pkg/styles"
+	"kubeui/internal/pkg/ui/help"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -78,7 +80,7 @@ func (v View) View(c kubeui.Context) string {
 	builder.WriteString(help.Short(v.windowWidth, []key.Binding{v.keys.Quit, v.keys.Continue}))
 	builder.WriteString("\n\n")
 	builder.WriteString("An error occured\n\n")
-	builder.WriteString(kubeui.ErrorMessageStyle.Render(kubeui.LineBreak(v.message, v.windowWidth)))
+	builder.WriteString(styles.ErrorMessage.Render(strui.LineBreak(v.message, v.windowWidth)))
 
 	return builder.String()
 }

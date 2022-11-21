@@ -2,10 +2,11 @@ package namespaceselection
 
 import (
 	"fmt"
-	"kubeui/internal/pkg/component/help"
 	"kubeui/internal/pkg/component/searchtable"
 	"kubeui/internal/pkg/k8smsg"
 	"kubeui/internal/pkg/kubeui"
+	"kubeui/internal/pkg/ui/help"
+	"kubeui/internal/pkg/ui/statusbar"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -150,7 +151,7 @@ func (v View) View(c kubeui.Context) string {
 	builder.WriteString(help.Short(v.windowWidth, []key.Binding{v.keys.Help, v.keys.Quit, v.keys.ExitView}))
 	builder.WriteString("\n\n")
 
-	statusBar := kubeui.StatusBar(v.windowWidth-1, " ", fmt.Sprintf("Context: %s", c.ContextClient.CurrentContext()))
+	statusBar := statusbar.New(v.windowWidth-1, " ", fmt.Sprintf("Context: %s", c.ContextClient.CurrentContext()))
 	builder.WriteString(statusBar + "\n")
 
 	builder.WriteString(v.namespaceTable.View())

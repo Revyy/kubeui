@@ -5,10 +5,11 @@ import (
 
 	"kubeui/internal/pkg/component/columntable"
 	"kubeui/internal/pkg/component/confirm"
-	"kubeui/internal/pkg/component/help"
 	"kubeui/internal/pkg/k8s"
 	"kubeui/internal/pkg/k8smsg"
 	"kubeui/internal/pkg/kubeui"
+	"kubeui/internal/pkg/ui/help"
+	"kubeui/internal/pkg/ui/statusbar"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -252,7 +253,7 @@ func (v View) View(c kubeui.Context) string {
 		return builder.String()
 	}
 
-	podViewStatusBar := kubeui.StatusBar(v.windowWidth-1, " ", fmt.Sprintf("Context: %s  Namespace: %s", c.ContextClient.CurrentContext(), c.Namespace))
+	podViewStatusBar := statusbar.New(v.windowWidth-1, " ", fmt.Sprintf("Context: %s  Namespace: %s", c.ContextClient.CurrentContext(), c.Namespace))
 	builder.WriteString(podViewStatusBar + "\n")
 
 	if v.loading {
