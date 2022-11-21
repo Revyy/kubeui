@@ -3,6 +3,8 @@ package statusbar_test
 import (
 	"kubeui/internal/pkg/ui/statusbar"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 var expectedWithLineBreak = `Test: 10 Test2: value Test3: val
@@ -23,9 +25,8 @@ func TestStatusBar(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := statusbar.New(tt.width, " ", tt.values...); got != tt.want {
-				t.Errorf("\nStatusBar() = \n%v\n want \n%v", got, tt.want)
-			}
+			got := statusbar.New(tt.width, " ", tt.values...)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
