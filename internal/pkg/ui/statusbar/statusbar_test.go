@@ -5,12 +5,10 @@ import (
 	"testing"
 )
 
-var expected = `Test: 10 Test2: value Test3: val
+var expectedWithLineBreak = `Test: 10 Test2: value Test3: val
 ue2
 ────────────────────────────────
 ───`
-
-// This test is mainly here as a regression test.
 
 func TestStatusBar(t *testing.T) {
 	tests := []struct {
@@ -19,15 +17,9 @@ func TestStatusBar(t *testing.T) {
 		values []string
 		want   string
 	}{
-		{
-			"Basic statusbar",
-			32,
-			[]string{"Test: 10",
-				"Test2: value",
-				"Test3: value2",
-			},
-			expected,
-		},
+		{"Width 0 should give empty string", 0, []string{"Some key"}, ""},
+		{"Basic statusbar", 100, []string{"Test: 10", "Test2: value", "Test3: value2"}, "Test: 10 Test2: value Test3: value2\n───────────────────────────────────"},
+		{"Basic statusbar with linebreak due to truncation", 32, []string{"Test: 10", "Test2: value", "Test3: value2"}, expectedWithLineBreak},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

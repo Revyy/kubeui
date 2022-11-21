@@ -19,6 +19,10 @@ var statusBarStyle = lipgloss.NewStyle().
 // Values are printed with separator in between.
 func New(width int, separator string, values ...string) string {
 
+	if width <= 0 {
+		return ""
+	}
+
 	builder := &strings.Builder{}
 
 	for _, v := range values {
