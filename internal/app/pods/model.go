@@ -6,6 +6,7 @@ import (
 	"kubeui/internal/app/pods/views/namespaceselection"
 	"kubeui/internal/app/pods/views/podinfo"
 	"kubeui/internal/app/pods/views/podselection"
+	"kubeui/internal/pkg/k8s"
 	"kubeui/internal/pkg/kubeui"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -26,16 +27,17 @@ type Model struct {
 	initializing bool
 	errorMessage string
 
+	contextClient k8s.ContextClient
+	k8sClient     k8s.Client
+
 	views map[string]kubeui.View
 }
 
 // NewModel creates a new model.
-func NewModel(contextClient kubeui.ContextClient, k8sClient kubeui.K8sClient) *Model {
+func NewModel(contextClient k8s.ContextClient, k8sClient k8s.Client) *Model {
 	return &Model{
 		kubeuiContext: kubeui.Context{
-			ContextClient: contextClient,
-			K8sClient:     k8sClient,
-			Namespace:     "default",
+			Namespace: "default",
 		},
 		views:        map[string]kubeui.View{},
 		initializing: true,
@@ -49,7 +51,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Global Keypresses and app messages.
 	switch msgT := msg.(type) {
 	case Initialize:
-		currentContext, ok := m.kubeuiContext.ContextClient.CurrentApiContext()
+		currentContext, ok := m.contextClient.CurrentApiContext()
 
 		if !ok {
 			return m, kubeui.Error(fmt.Errorf("invalid context"))
@@ -132,16 +134,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m Model) initializeView(viewId string) kubeui.View {
 	switch viewId {
 	case "pod_selection":
-		return podselection.New(m.windowWidth, m.windowHeight)
+		return podselection.New(m.k8sClient, m.contextClient, m.windowWidth, m.windowHeight)
 	case "namespace_selection":
-		return namespaceselection.New(m.windowWidth, m.windowHeight)
+		return namespaceselection.New(m.k8sClient, m.contextClient, m.windowWidth, m.windowHeight)
 	case "pod_info":
-		return podinfo.New(m.windowWidth, m.windowHeight)
+		return podinfo.New(m.k8sClient, m.windowWidth, m.windowHeight)
 	case "error_info":
 		return errorinfo.New(m.errorMessage, m.windowWidth, m.windowHeight)
 	}
 
-	return namespaceselection.New(m.windowWidth, m.windowHeight)
+	return namespaceselection.New(m.k8sClient, m.contextClient, m.windowWidth, m.windowHeight)
 }
 
 // View returns the view for the model.

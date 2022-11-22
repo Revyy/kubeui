@@ -71,15 +71,9 @@ func (v View) fullHelp() [][]key.Binding {
 	return bindings
 }
 
-// New creates a new View.
-func New(windowWidth, windowHeight int) View {
-
-	return View{
-		windowWidth:  windowWidth,
-		windowHeight: windowHeight,
-		keys:         newKeyMap(),
-		tabs:         []string{STATUS.String(), ANNOTATIONS.String(), LABELS.String(), EVENTS.String(), LOGS.String()},
-	}
+// K8sClient represents the interface towards kubernetes needed by this view.
+type K8sClient interface {
+	GetPod(namespace, id string) (*k8s.Pod, error)
 }
 
 // View displays pod information.
@@ -109,6 +103,21 @@ type View struct {
 	showFullHelp bool
 
 	pod *k8s.Pod
+
+	// Kubernetes client.
+	k8sClient K8sClient
+}
+
+// New creates a new View.
+func New(k8sClient K8sClient, windowWidth, windowHeight int) View {
+
+	return View{
+		k8sClient:    k8sClient,
+		windowWidth:  windowWidth,
+		windowHeight: windowHeight,
+		keys:         newKeyMap(),
+		tabs:         []string{STATUS.String(), ANNOTATIONS.String(), LABELS.String(), EVENTS.String(), LOGS.String()},
+	}
 }
 
 // tab defines the different tabs of the component.
@@ -185,7 +194,7 @@ func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.V
 		return c, v, nil
 	case msg.MatchesKeyBindings(v.keys.Refresh):
 
-		pod, err := c.K8sClient.GetPod(c.Namespace, c.SelectedPod)
+		pod, err := v.k8sClient.GetPod(c.Namespace, c.SelectedPod)
 
 		if err != nil {
 			return c, v, kubeui.Error(err)
@@ -427,7 +436,7 @@ func footerView(width int, viewPort viewport.Model) string {
 // Init initializes the view.
 func (v View) Init(c kubeui.Context) tea.Cmd {
 
-	pod, err := c.K8sClient.GetPod(c.Namespace, c.SelectedPod)
+	pod, err := v.k8sClient.GetPod(c.Namespace, c.SelectedPod)
 
 	if err != nil {
 		return kubeui.Error(err)

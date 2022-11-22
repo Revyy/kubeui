@@ -50,38 +50,71 @@ func NewClientConfig(context, kubeconfigPath string) clientcmd.ClientConfig {
 		})
 }
 
-// ContextClient is used to manipulate the current context.
-type ContextClient struct {
+// Client defines the interface to fetch data from kubernetes.
+// It might be split up into several more specialized clients in the future.
+type Client interface {
+	// Lists namespaces in the cluster.
+	ListNamespaces() (*v1.NamespaceList, error)
+	// Lists pods in the specified namespace.
+	ListPods(namespace string) (*v1.PodList, error)
+	// Fetches information about a single pod, including events and logs.
+	GetPod(namespace, id string) (*Pod, error)
+	// Delete the pod with the specified name in the specified namespace.
+	// Returns the name of the deleted pod.
+	DeletePod(namespace, name string) (string, error)
+}
+
+// ContextClient defines the interface for working with kubernetes contexts from a view.
+type ContextClient interface {
+	// Returns a list of available contexts.
+	Contexts() []string
+	// Returns the api.Context for the currently selected context if it exists.
+	// If no api.Context exists for the current context then the bool should be set to false.
+	CurrentApiContext() (*api.Context, bool)
+	// Returns the currently selected context.
+	CurrentContext() string
+	// Switch to the specified context and optionally set the default namespace.
+	SwitchContext(ctx, namespace string) (err error)
+	// Delete the specified context.
+	DeleteContext(ctx string) (err error)
+	// Delete the specified user entry.
+	DeleteUser(user string) (err error)
+	// Delete the specified cluster entry.
+	DeleteClusterEntry(cluster string) (err error)
+}
+
+// ContextClientImpl is used to manipulate the current context.
+type ContextClientImpl struct {
 	configAccess clientcmd.ConfigAccess
 	config       api.Config
 }
 
 // NewContextClient creates a new ContextClient.
-func NewContextClient(configAccess clientcmd.ConfigAccess, config api.Config) *ContextClient {
-	return &ContextClient{
+func NewContextClient(configAccess clientcmd.ConfigAccess, config api.Config) ContextClient {
+	return &ContextClientImpl{
 		configAccess: configAccess,
 		config:       config,
 	}
 }
 
 // CurrentApiContext returns the currently active api context.
-func (c *ContextClient) CurrentApiContext() (*api.Context, bool) {
+func (c *ContextClientImpl) CurrentApiContext() (*api.Context, bool) {
 	ctx, ok := c.config.Contexts[c.config.CurrentContext]
 	return ctx, ok
 }
 
 // CurrentContext returns the currently active context.
-func (c *ContextClient) CurrentContext() string {
+func (c *ContextClientImpl) CurrentContext() string {
 	return c.config.CurrentContext
 }
 
 // Contexts returns a list of available contexts.
-func (c *ContextClient) Contexts() []string {
+func (c *ContextClientImpl) Contexts() []string {
 	return maps.Keys(c.config.Contexts)
 }
 
 // SwitchContext changes the active context in a kubeconfig.
-func (c *ContextClient) SwitchContext(ctx, namespace string) (err error) {
+func (c *ContextClientImpl) SwitchContext(ctx, namespace string) (err error) {
 
 	kubeCtx, ok := c.config.Contexts[ctx]
 
@@ -103,7 +136,7 @@ func (c *ContextClient) SwitchContext(ctx, namespace string) (err error) {
 }
 
 // DeleteContext deletes a context from a kubeconfig file.
-func (c *ContextClient) DeleteContext(ctx string) (err error) {
+func (c *ContextClientImpl) DeleteContext(ctx string) (err error) {
 
 	configFile := c.configAccess.GetDefaultFilename()
 	if c.configAccess.IsExplicitFile() {
@@ -125,7 +158,7 @@ func (c *ContextClient) DeleteContext(ctx string) (err error) {
 }
 
 // DeleteUser deletes a user entry from a kubeconfig file.
-func (c *ContextClient) DeleteUser(user string) (err error) {
+func (c *ContextClientImpl) DeleteUser(user string) (err error) {
 
 	configFile := c.configAccess.GetDefaultFilename()
 	if c.configAccess.IsExplicitFile() {
@@ -147,7 +180,7 @@ func (c *ContextClient) DeleteUser(user string) (err error) {
 }
 
 // DeleteClusterEntry deletes a cluster entry from a kubeconfig file.
-func (c *ContextClient) DeleteClusterEntry(cluster string) (err error) {
+func (c *ContextClientImpl) DeleteClusterEntry(cluster string) (err error) {
 
 	configFile := c.configAccess.GetDefaultFilename()
 	if c.configAccess.IsExplicitFile() {
@@ -168,20 +201,20 @@ func (c *ContextClient) DeleteClusterEntry(cluster string) (err error) {
 	return nil
 }
 
-// K8sClient is used to fetch data and issue commands to a kubernetes cluster.
-type K8sClient struct {
+// K8sClientImpl is used to fetch data and issue commands to a kubernetes cluster.
+type K8sClientImpl struct {
 	kubectl kubernetes.Interface
 }
 
 // NewK8sClient creates a new K8sClient.
-func NewK8sClient(kubectl kubernetes.Interface) *K8sClient {
-	return &K8sClient{
+func NewK8sClient(kubectl kubernetes.Interface) Client {
+	return &K8sClientImpl{
 		kubectl: kubectl,
 	}
 }
 
 // ListNamespaces fetches all namespaces for the current context.
-func (c *K8sClient) ListNamespaces() (*v1.NamespaceList, error) {
+func (c *K8sClientImpl) ListNamespaces() (*v1.NamespaceList, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -197,7 +230,7 @@ func (c *K8sClient) ListNamespaces() (*v1.NamespaceList, error) {
 }
 
 // ListPods fetches all pods for the current context and namespace.
-func (c *K8sClient) ListPods(namespace string) (*v1.PodList, error) {
+func (c *K8sClientImpl) ListPods(namespace string) (*v1.PodList, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -213,7 +246,7 @@ func (c *K8sClient) ListPods(namespace string) (*v1.PodList, error) {
 }
 
 // GetPod fetches a pod in the current context and namespace.
-func (c *K8sClient) GetPod(namespace, id string) (*Pod, error) {
+func (c *K8sClientImpl) GetPod(namespace, id string) (*Pod, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -297,7 +330,7 @@ func getLogs(kubectl kubernetes.Interface, namespace string, pod *v1.Pod) (map[s
 }
 
 // DeletePod deletes a pod in the current context and namespace.
-func (c *K8sClient) DeletePod(namespace, name string) (string, error) {
+func (c *K8sClientImpl) DeletePod(namespace, name string) (string, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

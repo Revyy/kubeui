@@ -37,13 +37,15 @@ func (v View) fullHelp() [][]key.Binding {
 	return bindings
 }
 
-// New creates a new View.
-func New(windowWidth, windowHeight int) View {
-	return View{
-		windowWidth:  windowWidth,
-		windowHeight: windowHeight,
-		keys:         newKeyMap(),
-	}
+// K8sClient represents the interface towards kubernetes needed by this view.
+type K8sClient interface {
+	ListNamespaces() (*v1.NamespaceList, error)
+}
+
+// ContextClient represents the interface for working with kubernetes contexts that the view needs.
+type ContextClient interface {
+	CurrentContext() string
+	SwitchContext(ctx, namespace string) (err error)
 }
 
 // View allows the user to select a namespace.
@@ -64,6 +66,23 @@ type View struct {
 
 	// If the View has been initialized or not.
 	initialized bool
+
+	// Kubernetes client.
+	k8sClient K8sClient
+
+	// KubeContext client.
+	contextClient ContextClient
+}
+
+// New creates a new View.
+func New(k8sClient K8sClient, contextClient ContextClient, windowWidth, windowHeight int) View {
+	return View{
+		k8sClient:     k8sClient,
+		contextClient: contextClient,
+		windowWidth:   windowWidth,
+		windowHeight:  windowHeight,
+		keys:          newKeyMap(),
+	}
 }
 
 // Update handles new messages from the runtime.
@@ -123,7 +142,7 @@ func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.V
 
 	case searchtable.Selection:
 
-		err := c.ContextClient.SwitchContext(c.ContextClient.CurrentContext(), t.Value)
+		err := v.contextClient.SwitchContext(v.contextClient.CurrentContext(), t.Value)
 		if err != nil {
 			return c, v, kubeui.Error(err)
 		}
@@ -151,7 +170,7 @@ func (v View) View(c kubeui.Context) string {
 	builder.WriteString(help.Short(v.windowWidth, []key.Binding{v.keys.Help, v.keys.Quit, v.keys.ExitView}))
 	builder.WriteString("\n\n")
 
-	statusBar := statusbar.New(v.windowWidth-1, " ", fmt.Sprintf("Context: %s", c.ContextClient.CurrentContext()))
+	statusBar := statusbar.New(v.windowWidth-1, " ", fmt.Sprintf("Context: %s", v.contextClient.CurrentContext()))
 	builder.WriteString(statusBar + "\n")
 
 	builder.WriteString(v.namespaceTable.View())
@@ -165,7 +184,7 @@ func (v View) Init(c kubeui.Context) tea.Cmd {
 		return nil
 	}
 
-	namespaces, err := c.K8sClient.ListNamespaces()
+	namespaces, err := v.k8sClient.ListNamespaces()
 
 	if err != nil {
 		return kubeui.Error(err)
