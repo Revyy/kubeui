@@ -25,7 +25,7 @@ type ExitViewMsg struct{}
 // ExitViewMsg exits the current view.
 func ExitView() tea.Cmd {
 	return func() tea.Msg {
-		return &ExitViewMsg{}
+		return ExitViewMsg{}
 	}
 }
 
