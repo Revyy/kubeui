@@ -71,12 +71,12 @@ type ListEventFormat struct {
 }
 
 // NewListEventFormat collects the ListEventFormat information.
-func NewListEventFormat(event v1.Event) *ListEventFormat {
+func NewListEventFormat(event v1.Event, now time.Time) *ListEventFormat {
 
 	return &ListEventFormat{
 		Type:    event.Type,
 		Reason:  event.Reason,
-		Age:     duration.HumanDuration(time.Since(event.CreationTimestamp.Time)),
+		Age:     duration.HumanDuration(now.Sub(event.CreationTimestamp.Time)),
 		From:    event.ReportingController,
 		Message: event.Message,
 	}

@@ -4,6 +4,7 @@ import (
 	"kubeui/internal/pkg/k8s"
 	"kubeui/internal/pkg/ui/table"
 	"sort"
+	"time"
 
 	"github.com/life4/genesis/maps"
 	"github.com/life4/genesis/slices"
@@ -23,7 +24,7 @@ func eventColumnsAndRows(maxWidth int, events []v1.Event) ([]table.DataColumn, [
 
 	eventRows := slices.Map(events, func(e v1.Event) table.DataRow {
 
-		eventFormat := k8s.NewListEventFormat(e)
+		eventFormat := k8s.NewListEventFormat(e, time.Now())
 
 		// Update widths of the name and status columns
 		eventColumns[0].Width = integer.IntMax(eventColumns[0].Width, len(eventFormat.Type)+2)
