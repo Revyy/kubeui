@@ -39,8 +39,10 @@ func NewModel(contextClient k8s.ContextClient, k8sClient k8s.Client) *Model {
 		kubeuiContext: kubeui.Context{
 			Namespace: "default",
 		},
-		views:        map[string]kubeui.View{},
-		initializing: true,
+		contextClient: contextClient,
+		k8sClient:     k8sClient,
+		views:         map[string]kubeui.View{},
+		initializing:  true,
 	}
 }
 

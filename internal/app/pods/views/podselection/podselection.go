@@ -97,11 +97,12 @@ type View struct {
 // New creates a new View.
 func New(k8sClient K8sClient, contextClient ContextClient, windowWidth, windowHeight int) View {
 	return View{
-		k8sClient:    k8sClient,
-		windowWidth:  windowWidth,
-		windowHeight: windowHeight,
-		keys:         newKeyMap(),
-		loading:      true,
+		k8sClient:     k8sClient,
+		contextClient: contextClient,
+		windowWidth:   windowWidth,
+		windowHeight:  windowHeight,
+		keys:          newKeyMap(),
+		loading:       true,
 	}
 }
 
