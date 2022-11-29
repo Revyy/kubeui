@@ -358,3 +358,147 @@ func TestPodInitStatus(t *testing.T) {
 		})
 	}
 }
+
+func TestPodNonInitStatus(t *testing.T) {
+	tests := []struct {
+		name string
+		pod  v1.Pod
+		want string
+	}{
+		{"With no container statuses and no status reason we should get the pod phase", v1.Pod{Status: v1.PodStatus{Phase: v1.PodRunning}}, string(v1.PodRunning)},
+
+		{"With no container statuses then we should get the status reason if it exists", v1.Pod{Status: v1.PodStatus{Phase: v1.PodRunning, Reason: "Reason"}}, "Reason"},
+
+		{"If the first container has status waiting with a reason then we should get the reason", v1.Pod{
+			Status: v1.PodStatus{
+				Phase:  v1.PodRunning,
+				Reason: "Reason",
+				ContainerStatuses: []v1.ContainerStatus{
+					{State: v1.ContainerState{Waiting: &v1.ContainerStateWaiting{Reason: "WaitReason"}}},
+					{State: v1.ContainerState{Waiting: &v1.ContainerStateWaiting{Reason: "WaitReason2"}}},
+				},
+			},
+		}, "WaitReason"},
+
+		{"If the first container is terminated and we have a reason", v1.Pod{
+			Status: v1.PodStatus{
+				Phase:  v1.PodRunning,
+				Reason: "Reason",
+				ContainerStatuses: []v1.ContainerStatus{
+					{State: v1.ContainerState{Waiting: &v1.ContainerStateWaiting{Reason: "WaitReason"}}},
+					{State: v1.ContainerState{Waiting: &v1.ContainerStateWaiting{Reason: "WaitReason2"}}},
+				},
+			},
+		}, "WaitReason"},
+
+		{"We should get the termination reason for the first container if it exists", v1.Pod{
+			Status: v1.PodStatus{
+				Phase:  v1.PodRunning,
+				Reason: "Reason",
+				ContainerStatuses: []v1.ContainerStatus{
+					{State: v1.ContainerState{Terminated: &v1.ContainerStateTerminated{ExitCode: 1, Reason: "Reason 1"}}},
+					{State: v1.ContainerState{Terminated: &v1.ContainerStateTerminated{ExitCode: 0}}},
+				},
+			},
+		}, "Reason 1"},
+
+		{"We should get the signal code for the first container if exists and no reason exists", v1.Pod{
+			Status: v1.PodStatus{
+				Phase:  v1.PodRunning,
+				Reason: "Reason",
+				ContainerStatuses: []v1.ContainerStatus{
+					{State: v1.ContainerState{Terminated: &v1.ContainerStateTerminated{Signal: 10}}},
+					{State: v1.ContainerState{Terminated: &v1.ContainerStateTerminated{ExitCode: 0, Reason: "Reason 2"}}},
+				},
+			},
+		}, "Signal:10"},
+
+		{"We should get the exit code for the first container if exists and no reason or signal exists", v1.Pod{
+			Status: v1.PodStatus{
+				Phase:  v1.PodRunning,
+				Reason: "Reason",
+				ContainerStatuses: []v1.ContainerStatus{
+					{State: v1.ContainerState{Terminated: &v1.ContainerStateTerminated{ExitCode: 1}}},
+					{State: v1.ContainerState{Terminated: &v1.ContainerStateTerminated{ExitCode: 0, Reason: "Reason 2"}}},
+				},
+			},
+		}, "ExitCode:1"},
+
+		{"Exit reason should be prioritized over singal and exit code", v1.Pod{
+			Status: v1.PodStatus{
+				Phase:  v1.PodRunning,
+				Reason: "Reason",
+				ContainerStatuses: []v1.ContainerStatus{
+					{State: v1.ContainerState{Terminated: &v1.ContainerStateTerminated{ExitCode: 1, Reason: "Reason 2", Signal: 10}}},
+					{State: v1.ContainerState{Terminated: &v1.ContainerStateTerminated{ExitCode: 0}}},
+				},
+			},
+		}, "Reason 2"},
+
+		{"Exit signal should be prioritized over exit code", v1.Pod{
+			Status: v1.PodStatus{
+				Phase:  v1.PodRunning,
+				Reason: "Reason",
+				ContainerStatuses: []v1.ContainerStatus{
+					{State: v1.ContainerState{Terminated: &v1.ContainerStateTerminated{ExitCode: 1, Signal: 10}}},
+					{State: v1.ContainerState{Terminated: &v1.ContainerStateTerminated{ExitCode: 0}}},
+				},
+			},
+		}, "Signal:10"},
+
+		// This is a tricky one.
+		// Basically if we still have a running container, no terminated ones, but one that is completed.
+		// Then we check if the pod has a ready condition that is true, if it is then we are running and
+		// the completed container probably ran as part of some startup process.
+		{"One running container, one completed and pod ready", v1.Pod{
+			Status: v1.PodStatus{
+				Conditions: []v1.PodCondition{
+					{Type: v1.PodReady, Status: v1.ConditionTrue},
+				},
+				Phase: v1.PodRunning,
+				ContainerStatuses: []v1.ContainerStatus{
+					{Ready: true, State: v1.ContainerState{Running: &v1.ContainerStateRunning{}}},
+					{Ready: true, State: v1.ContainerState{Waiting: &v1.ContainerStateWaiting{Reason: "Completed"}}},
+				},
+			},
+		}, "Running"},
+
+		// This is a tricky one.
+		// Basically if we still have a running container, no terminated ones, but one that is completed.
+		// Then we check if the pod has a ready condition that is true, if it is not then we are not ready yet.
+		// This is probably a temporary waiting status between a startup container running and the pod receiving the ready condition.
+		{"One running container, one completed and pod not ready", v1.Pod{
+			Status: v1.PodStatus{
+				Conditions: []v1.PodCondition{
+					{Type: v1.PodReady, Status: v1.ConditionFalse},
+				},
+				Phase: v1.PodRunning,
+				ContainerStatuses: []v1.ContainerStatus{
+					{Ready: true, State: v1.ContainerState{Running: &v1.ContainerStateRunning{}}},
+					{Ready: true, State: v1.ContainerState{Waiting: &v1.ContainerStateWaiting{Reason: "Completed"}}},
+				},
+			},
+		}, "NotReady"},
+
+		// Same conditions as the ones above but in this case the pod is waiting with an actual reason.
+		// So in this case that reason should be used instead.
+		{"One running container, one waiting and pod ready", v1.Pod{
+			Status: v1.PodStatus{
+				Conditions: []v1.PodCondition{
+					{Type: v1.PodReady, Status: v1.ConditionTrue},
+				},
+				Phase: v1.PodRunning,
+				ContainerStatuses: []v1.ContainerStatus{
+					{Ready: true, State: v1.ContainerState{Running: &v1.ContainerStateRunning{}}},
+					{Ready: true, State: v1.ContainerState{Waiting: &v1.ContainerStateWaiting{Reason: "Some Reason"}}},
+				},
+			},
+		}, "Some Reason"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := k8s.PodNonInitStatus(tt.pod)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
