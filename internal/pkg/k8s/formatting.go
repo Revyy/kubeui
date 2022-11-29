@@ -22,7 +22,28 @@ type ListPodFormat struct {
 // NewListPodFormat collects the ListPodFormat information for a given pod.
 func NewListPodFormat(pod v1.Pod) *ListPodFormat {
 
-	podStatus := PodStatus(pod)
+	initializing := IsPodInitializing(pod)
+
+	// We first collect information from the initContainers in the pod.
+	// Depending on the status of those we are in the initializing/creation phase of a pod or the running phase of a pod.
+	var podStatus string
+
+	if initializing {
+		podStatus = PodInitStatus(pod)
+	} else {
+		podStatus = PodNonInitStatus(pod)
+	}
+
+	// If the pod is scheduled for deletion.
+	if pod.DeletionTimestamp != nil {
+		podStatus = "Terminating"
+	}
+
+	// If it is scheduled for deletion with reason NodeLost.
+	if pod.DeletionTimestamp != nil && pod.Status.Reason == "NodeLost" {
+		podStatus = "Unknown"
+	}
+
 	lastRestart := PodLastRestarted(pod)
 	restartCount := PodRestartCount(pod)
 	readyCount := ContainerReadyCount(pod)
@@ -111,32 +132,6 @@ func NewListEventFormat(event v1.Event, now time.Time) *ListEventFormat {
 		From:    event.ReportingController,
 		Message: event.Message,
 	}
-}
-
-func PodStatus(pod v1.Pod) string {
-	initializing := IsPodInitializing(pod)
-
-	// We first collect information from the initContainers in the pod.
-	// Depending on the status of those we are in the initializing/creation phase of a pod or the running phase of a pod.
-	var status string
-
-	if initializing {
-		status = PodInitStatus(pod)
-	} else {
-		status = PodNonInitStatus(pod)
-	}
-
-	// If the pod is scheduled for deletion.
-	if pod.DeletionTimestamp != nil {
-		status = "Terminating"
-	}
-
-	// If it is scheduled for deletion with reason NodeLost.
-	if pod.DeletionTimestamp != nil && pod.Status.Reason == "NodeLost" {
-		status = "Unknown"
-	}
-
-	return status
 }
 
 func IsPodInitializing(pod v1.Pod) bool {
