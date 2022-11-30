@@ -83,18 +83,33 @@ type ContextClient interface {
 	DeleteClusterEntry(cluster string) (err error)
 }
 
+// ModifyConfigFunc is used to modify the underlying configuration in the file-system.
+// This exists to enable testing the ContextClientImpl without manipulating actual files in the filesystem.
+type ModifyConfigFunc func(configAccess clientcmd.ConfigAccess, newConfig api.Config, relativizePaths bool) error
+
 // ContextClientImpl is used to manipulate the current context.
 type ContextClientImpl struct {
+	modifyConfig ModifyConfigFunc
 	configAccess clientcmd.ConfigAccess
 	config       api.Config
 }
 
-// NewContextClient creates a new ContextClient.
-func NewContextClient(configAccess clientcmd.ConfigAccess, config api.Config) ContextClient {
-	return &ContextClientImpl{
+// NewContextClientImpl creates a new ContextClient.
+//
+// If modifyConfig is nil it will default to clientcmd.ModifyConfig.
+func NewContextClientImpl(configAccess clientcmd.ConfigAccess, config api.Config, modifyConfig ModifyConfigFunc) *ContextClientImpl {
+	impl := &ContextClientImpl{
 		configAccess: configAccess,
 		config:       config,
+		modifyConfig: clientcmd.ModifyConfig,
 	}
+
+	if modifyConfig != nil {
+		impl.modifyConfig = modifyConfig
+	}
+
+	return impl
+
 }
 
 // CurrentApiContext returns the currently active api context.
@@ -122,15 +137,16 @@ func (c *ContextClientImpl) SwitchContext(ctx, namespace string) (err error) {
 		return fmt.Errorf("context %s doesn't exists", ctx)
 	}
 
+	err = c.modifyConfig(c.configAccess, c.config, true)
+	if err != nil {
+		return fmt.Errorf("error ModifyConfig: %v", err)
+	}
+
 	if namespace != "" {
 		kubeCtx.Namespace = namespace
 	}
 
 	c.config.CurrentContext = ctx
-	err = clientcmd.ModifyConfig(c.configAccess, c.config, true)
-	if err != nil {
-		return fmt.Errorf("error ModifyConfig: %v", err)
-	}
 
 	return nil
 }
@@ -138,20 +154,19 @@ func (c *ContextClientImpl) SwitchContext(ctx, namespace string) (err error) {
 // DeleteContext deletes a context from a kubeconfig file.
 func (c *ContextClientImpl) DeleteContext(ctx string) (err error) {
 
-	configFile := c.configAccess.GetDefaultFilename()
-	if c.configAccess.IsExplicitFile() {
-		configFile = c.configAccess.GetExplicitFile()
-	}
-
 	_, ok := c.config.Contexts[ctx]
 	if !ok {
-		return fmt.Errorf("context %s, is not in %s", ctx, configFile)
+		return fmt.Errorf("context %s doesn't exists", ctx)
+	}
+
+	if err := c.modifyConfig(c.configAccess, c.config, true); err != nil {
+		return err
 	}
 
 	delete(c.config.Contexts, ctx)
 
-	if err := clientcmd.ModifyConfig(c.configAccess, c.config, true); err != nil {
-		return err
+	if ctx == c.config.CurrentContext {
+		c.config.CurrentContext = ""
 	}
 
 	return nil
@@ -160,21 +175,16 @@ func (c *ContextClientImpl) DeleteContext(ctx string) (err error) {
 // DeleteUser deletes a user entry from a kubeconfig file.
 func (c *ContextClientImpl) DeleteUser(user string) (err error) {
 
-	configFile := c.configAccess.GetDefaultFilename()
-	if c.configAccess.IsExplicitFile() {
-		configFile = c.configAccess.GetExplicitFile()
-	}
-
 	_, ok := c.config.AuthInfos[user]
 	if !ok {
-		return fmt.Errorf("user %s, is not in %s", user, configFile)
+		return fmt.Errorf("user %s doesn't exists", user)
+	}
+
+	if err := c.modifyConfig(c.configAccess, c.config, true); err != nil {
+		return err
 	}
 
 	delete(c.config.AuthInfos, user)
-
-	if err := clientcmd.ModifyConfig(c.configAccess, c.config, true); err != nil {
-		return err
-	}
 
 	return nil
 }
@@ -182,21 +192,16 @@ func (c *ContextClientImpl) DeleteUser(user string) (err error) {
 // DeleteClusterEntry deletes a cluster entry from a kubeconfig file.
 func (c *ContextClientImpl) DeleteClusterEntry(cluster string) (err error) {
 
-	configFile := c.configAccess.GetDefaultFilename()
-	if c.configAccess.IsExplicitFile() {
-		configFile = c.configAccess.GetExplicitFile()
-	}
-
 	_, ok := c.config.Clusters[cluster]
 	if !ok {
-		return fmt.Errorf("cluster %s, is not in %s", cluster, configFile)
+		return fmt.Errorf("cluster %s doesn't exists", cluster)
+	}
+
+	if err := c.modifyConfig(c.configAccess, c.config, true); err != nil {
+		return err
 	}
 
 	delete(c.config.Clusters, cluster)
-
-	if err := clientcmd.ModifyConfig(c.configAccess, c.config, true); err != nil {
-		return err
-	}
 
 	return nil
 }
