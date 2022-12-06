@@ -4,6 +4,8 @@ import (
 	"kubeui/internal/app/cxs"
 	"kubeui/internal/app/pods"
 	"kubeui/internal/pkg/k8s"
+	"kubeui/internal/pkg/k8s/namespace"
+	k8spods "kubeui/internal/pkg/k8s/pods"
 	"kubeui/internal/pkg/kubeui"
 	"log"
 
@@ -46,7 +48,10 @@ func main() {
 	case "cxs":
 		m = cxs.NewModel(k8s.NewContextClientImpl(configAccess, rawConfig, nil))
 	case "pods":
-		m = pods.NewModel(k8s.NewContextClientImpl(configAccess, rawConfig, nil), k8s.NewK8sClient(clientSet))
+		m = pods.NewModel(k8s.NewContextClientImpl(configAccess, rawConfig, nil), k8s.NewK8sService(
+			k8spods.NewClient(clientSet.CoreV1()),
+			namespace.NewClient(clientSet.CoreV1()),
+		))
 	default:
 		log.Fatalf("no command called %s", args.Program)
 	}

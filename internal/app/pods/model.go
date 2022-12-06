@@ -28,13 +28,13 @@ type Model struct {
 	errorMessage string
 
 	contextClient k8s.ContextClient
-	k8sClient     k8s.Client
+	k8sClient     k8s.Service
 
 	views map[string]kubeui.View
 }
 
 // NewModel creates a new model.
-func NewModel(contextClient k8s.ContextClient, k8sClient k8s.Client) *Model {
+func NewModel(contextClient k8s.ContextClient, k8sClient k8s.Service) *Model {
 	return &Model{
 		kubeuiContext: kubeui.Context{
 			Namespace: "default",
