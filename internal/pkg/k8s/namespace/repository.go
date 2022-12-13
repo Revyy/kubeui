@@ -15,17 +15,17 @@ type Repository interface {
 
 // NewRepository creates a new Client.
 func NewRepository(kubectl corev1.CoreV1Interface) Repository {
-	return &ClientImpl{
+	return &RepositoryImpl{
 		kubectl: kubectl,
 	}
 }
 
-// ClientImpl is used to fetch pod related data from kubernetes.
-type ClientImpl struct {
+// RepositoryImpl is used to fetch pod related data from kubernetes.
+type RepositoryImpl struct {
 	kubectl corev1.CoreV1Interface
 }
 
 // List lists all namespaces.
-func (c *ClientImpl) List(ctx context.Context) (*v1.NamespaceList, error) {
+func (c *RepositoryImpl) List(ctx context.Context) (*v1.NamespaceList, error) {
 	return c.kubectl.Namespaces().List(ctx, metav1.ListOptions{})
 }

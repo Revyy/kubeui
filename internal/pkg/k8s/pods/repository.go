@@ -24,33 +24,33 @@ type Repository interface {
 
 // NewRepository creates a new Client.
 func NewRepository(kubectl corev1.CoreV1Interface) Repository {
-	return &ClientImpl{
+	return &RepositoryImpl{
 		kubectl: kubectl,
 	}
 }
 
-// ClientImpl is used to fetch pod related data from kubernetes.
-type ClientImpl struct {
+// RepositoryImpl is used to fetch pod related data from kubernetes.
+type RepositoryImpl struct {
 	kubectl corev1.CoreV1Interface
 }
 
 // Get fetches a single pod.
-func (c *ClientImpl) Get(ctx context.Context, namespace, name string) (*v1.Pod, error) {
+func (c *RepositoryImpl) Get(ctx context.Context, namespace, name string) (*v1.Pod, error) {
 	return c.kubectl.Pods(namespace).Get(ctx, name, metav1.GetOptions{})
 }
 
 // Delete deletes a pod.
-func (c *ClientImpl) Delete(ctx context.Context, namespace, name string) error {
+func (c *RepositoryImpl) Delete(ctx context.Context, namespace, name string) error {
 	return c.kubectl.Pods(namespace).Delete(ctx, name, metav1.DeleteOptions{})
 }
 
 // List fetches a list of pods for a given namespace.
-func (c *ClientImpl) List(ctx context.Context, namespace string) (*v1.PodList, error) {
+func (c *RepositoryImpl) List(ctx context.Context, namespace string) (*v1.PodList, error) {
 	return c.kubectl.Pods(namespace).List(ctx, metav1.ListOptions{})
 }
 
 // Events fetches the current events for a pod.
-func (c *ClientImpl) Events(ctx context.Context, namespace, name string) (*v1.EventList, error) {
+func (c *RepositoryImpl) Events(ctx context.Context, namespace, name string) (*v1.EventList, error) {
 	return c.kubectl.Events(namespace).List(ctx, metav1.ListOptions{FieldSelector: fmt.Sprintf("involvedObject.name=%s", name), TypeMeta: metav1.TypeMeta{Kind: "Pod"}})
 }
 
@@ -62,7 +62,7 @@ type LogsOptions struct {
 // TailLogs fetches the latest logs for a pod.
 // By default the last 100 log lines will be fetched but this can be customized using the options parameter.
 // Logs are returned as a mapping between the container name and the logs as a unified string separated by linebreaks '\n'.
-func (c *ClientImpl) TailLogs(ctx context.Context, pod *v1.Pod, options LogsOptions) (map[string]string, error) {
+func (c *RepositoryImpl) TailLogs(ctx context.Context, pod *v1.Pod, options LogsOptions) (map[string]string, error) {
 	containerLogs := map[string]string{}
 
 	errGroup := &errgroup.Group{}
