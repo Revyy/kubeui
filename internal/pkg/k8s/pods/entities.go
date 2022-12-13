@@ -1,4 +1,4 @@
-package k8s
+package pods
 
 import (
 	"github.com/life4/genesis/slices"

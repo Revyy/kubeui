@@ -3,7 +3,7 @@ package podinfo
 import (
 	"fmt"
 	"kubeui/internal/pkg/jsoncolor"
-	"kubeui/internal/pkg/k8s"
+	"kubeui/internal/pkg/k8s/pods"
 	"kubeui/internal/pkg/k8smsg"
 	"kubeui/internal/pkg/kubeui"
 	"kubeui/internal/pkg/ui/help"
@@ -73,7 +73,7 @@ func (v View) fullHelp() [][]key.Binding {
 
 // K8sService represents the interface towards kubernetes needed by this view.
 type K8sService interface {
-	GetPod(namespace, id string) (*k8s.Pod, error)
+	GetPod(namespace, id string) (*pods.Pod, error)
 }
 
 // View displays pod information.
@@ -102,7 +102,7 @@ type View struct {
 	// Show full help view or not.
 	showFullHelp bool
 
-	pod *k8s.Pod
+	pod *pods.Pod
 
 	// Kubernetes client.
 	k8sClient K8sService
@@ -412,7 +412,7 @@ func (v View) headerView(width int, forTab tab) string {
 
 // tableHeaderView creates the table header view.
 // Producing table headers seperately from the rows allows us to let the content scroll past the headers without hiding them.
-func tableHeaderView(width int, t tab, pod k8s.Pod) string {
+func tableHeaderView(width int, t tab, pod pods.Pod) string {
 
 	var columns []table.DataColumn
 	switch t {

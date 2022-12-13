@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"kubeui/internal/pkg/component/confirm"
 	"kubeui/internal/pkg/component/searchtable"
-	"kubeui/internal/pkg/k8s"
+	"kubeui/internal/pkg/k8s/k8scontext"
 	"kubeui/internal/pkg/ui/help"
 	"sort"
 	"strings"
@@ -38,7 +38,7 @@ func newAppKeyMap() *appKeyMap {
 type Model struct {
 
 	// Client for manipulating kube-contexts.
-	contextClient k8s.ContextClient
+	contextClient k8scontext.Client
 
 	// application level keybindings
 	keys *appKeyMap
@@ -58,7 +58,7 @@ type Model struct {
 }
 
 // NewModel creates a new cxs model.
-func NewModel(contextClient k8s.ContextClient) *Model {
+func NewModel(contextClient k8scontext.Client) *Model {
 
 	contexts := contextClient.Contexts()
 	sort.Strings(contexts)
@@ -165,7 +165,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // deleteContext deletes a kubernetes context and the corresponding cluster entry and user entry.
-func deleteContext(kubeCtx string, contextClient k8s.ContextClient) error {
+func deleteContext(kubeCtx string, contextClient k8scontext.Client) error {
 	err := contextClient.DeleteContext(kubeCtx)
 
 	if err != nil {

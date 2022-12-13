@@ -7,6 +7,7 @@ import (
 	"kubeui/internal/app/pods/views/podinfo"
 	"kubeui/internal/app/pods/views/podselection"
 	"kubeui/internal/pkg/k8s"
+	"kubeui/internal/pkg/k8s/k8scontext"
 	"kubeui/internal/pkg/kubeui"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -27,20 +28,20 @@ type Model struct {
 	initializing bool
 	errorMessage string
 
-	contextClient k8s.ContextClient
-	k8sClient     k8s.Service
+	contextClient k8scontext.Client
+	k8sService    k8s.Service
 
 	views map[string]kubeui.View
 }
 
 // NewModel creates a new model.
-func NewModel(contextClient k8s.ContextClient, k8sClient k8s.Service) *Model {
+func NewModel(contextClient k8scontext.Client, k8sService k8s.Service) *Model {
 	return &Model{
 		kubeuiContext: kubeui.Context{
 			Namespace: "default",
 		},
 		contextClient: contextClient,
-		k8sClient:     k8sClient,
+		k8sService:    k8sService,
 		views:         map[string]kubeui.View{},
 		initializing:  true,
 	}
@@ -136,16 +137,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m Model) initializeView(viewId string) kubeui.View {
 	switch viewId {
 	case "pod_selection":
-		return podselection.New(m.k8sClient, m.contextClient, m.windowWidth, m.windowHeight)
+		return podselection.New(m.k8sService, m.contextClient, m.windowWidth, m.windowHeight)
 	case "namespace_selection":
-		return namespaceselection.New(m.k8sClient, m.contextClient, m.windowWidth, m.windowHeight)
+		return namespaceselection.New(m.k8sService, m.contextClient, m.windowWidth, m.windowHeight)
 	case "pod_info":
-		return podinfo.New(m.k8sClient, m.windowWidth, m.windowHeight)
+		return podinfo.New(m.k8sService, m.windowWidth, m.windowHeight)
 	case "error_info":
 		return errorinfo.New(m.errorMessage, m.windowWidth, m.windowHeight)
 	}
 
-	return namespaceselection.New(m.k8sClient, m.contextClient, m.windowWidth, m.windowHeight)
+	return namespaceselection.New(m.k8sService, m.contextClient, m.windowWidth, m.windowHeight)
 }
 
 // View returns the view for the model.

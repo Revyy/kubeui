@@ -1,4 +1,4 @@
-package k8s
+package k8scontext
 
 import (
 	"fmt"
@@ -9,8 +9,8 @@ import (
 	"k8s.io/client-go/tools/clientcmd/api"
 )
 
-// ContextClient defines the interface for working with kubernetes contexts from a view.
-type ContextClient interface {
+// Client defines the interface for working with kubernetes contexts from a view.
+type Client interface {
 	// Returns a list of available contexts.
 	Contexts() []string
 	// Returns the api.Context for the currently selected context if it exists.
@@ -32,18 +32,18 @@ type ContextClient interface {
 // This exists to enable testing the ContextClientImpl without manipulating actual files in the filesystem.
 type ModifyConfigFunc func(configAccess clientcmd.ConfigAccess, newConfig api.Config, relativizePaths bool) error
 
-// ContextClientImpl is used to manipulate the current context.
-type ContextClientImpl struct {
+// ClientImpl is used to manipulate the current context.
+type ClientImpl struct {
 	modifyConfig ModifyConfigFunc
 	configAccess clientcmd.ConfigAccess
 	config       api.Config
 }
 
-// NewContextClientImpl creates a new ContextClient.
+// NewClientImpl creates a new Client.
 //
 // If modifyConfig is nil it will default to clientcmd.ModifyConfig.
-func NewContextClientImpl(configAccess clientcmd.ConfigAccess, config api.Config, modifyConfig ModifyConfigFunc) *ContextClientImpl {
-	impl := &ContextClientImpl{
+func NewClientImpl(configAccess clientcmd.ConfigAccess, config api.Config, modifyConfig ModifyConfigFunc) *ClientImpl {
+	impl := &ClientImpl{
 		configAccess: configAccess,
 		config:       config,
 		modifyConfig: clientcmd.ModifyConfig,
@@ -58,23 +58,23 @@ func NewContextClientImpl(configAccess clientcmd.ConfigAccess, config api.Config
 }
 
 // CurrentApiContext returns the currently active api context.
-func (c *ContextClientImpl) CurrentApiContext() (*api.Context, bool) {
+func (c *ClientImpl) CurrentApiContext() (*api.Context, bool) {
 	ctx, ok := c.config.Contexts[c.config.CurrentContext]
 	return ctx, ok
 }
 
 // CurrentContext returns the currently active context.
-func (c *ContextClientImpl) CurrentContext() string {
+func (c *ClientImpl) CurrentContext() string {
 	return c.config.CurrentContext
 }
 
 // Contexts returns a list of available contexts.
-func (c *ContextClientImpl) Contexts() []string {
+func (c *ClientImpl) Contexts() []string {
 	return maps.Keys(c.config.Contexts)
 }
 
 // SwitchContext changes the active context in a kubeconfig.
-func (c *ContextClientImpl) SwitchContext(ctx, namespace string) (err error) {
+func (c *ClientImpl) SwitchContext(ctx, namespace string) (err error) {
 
 	kubeCtx, ok := c.config.Contexts[ctx]
 
@@ -97,7 +97,7 @@ func (c *ContextClientImpl) SwitchContext(ctx, namespace string) (err error) {
 }
 
 // DeleteContext deletes a context from a kubeconfig file.
-func (c *ContextClientImpl) DeleteContext(ctx string) (err error) {
+func (c *ClientImpl) DeleteContext(ctx string) (err error) {
 
 	_, ok := c.config.Contexts[ctx]
 	if !ok {
@@ -118,7 +118,7 @@ func (c *ContextClientImpl) DeleteContext(ctx string) (err error) {
 }
 
 // DeleteUser deletes a user entry from a kubeconfig file.
-func (c *ContextClientImpl) DeleteUser(user string) (err error) {
+func (c *ClientImpl) DeleteUser(user string) (err error) {
 
 	_, ok := c.config.AuthInfos[user]
 	if !ok {
@@ -135,7 +135,7 @@ func (c *ContextClientImpl) DeleteUser(user string) (err error) {
 }
 
 // DeleteClusterEntry deletes a cluster entry from a kubeconfig file.
-func (c *ContextClientImpl) DeleteClusterEntry(cluster string) (err error) {
+func (c *ClientImpl) DeleteClusterEntry(cluster string) (err error) {
 
 	_, ok := c.config.Clusters[cluster]
 	if !ok {

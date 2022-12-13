@@ -1,8 +1,8 @@
-package k8s_test
+package k8scontext_test
 
 import (
 	"fmt"
-	"kubeui/internal/pkg/k8s"
+	"kubeui/internal/pkg/k8s/k8scontext"
 	"testing"
 
 	"github.com/life4/genesis/maps"
@@ -52,7 +52,7 @@ func TestContextClientImpl_CurrentApiContext(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := k8s.NewContextClientImpl(tt.configAccess, tt.config, nil)
+			c := k8scontext.NewClientImpl(tt.configAccess, tt.config, nil)
 
 			got, exist := c.CurrentApiContext()
 			assert.EqualValues(t, got, tt.want)
@@ -82,7 +82,7 @@ func TestContextClientImpl_CurrentContext(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := k8s.NewContextClientImpl(tt.configAccess, tt.config, nil)
+			c := k8scontext.NewClientImpl(tt.configAccess, tt.config, nil)
 			got := c.CurrentContext()
 			assert.EqualValues(t, got, tt.want)
 		})
@@ -112,7 +112,7 @@ func TestContextClientImpl_Contexts(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := k8s.NewContextClientImpl(tt.configAccess, tt.config, nil)
+			c := k8scontext.NewClientImpl(tt.configAccess, tt.config, nil)
 			got := c.Contexts()
 			assert.Subset(t, got, tt.want)
 			assert.Equal(t, len(tt.want), len(got))
@@ -138,7 +138,7 @@ func TestContextClientImpl_SwitchContext(t *testing.T) {
 	}
 
 	type fields struct {
-		modifyConfig   k8s.ModifyConfigFunc
+		modifyConfig   k8scontext.ModifyConfigFunc
 		configAccess   clientcmd.ConfigAccess
 		currentContext string
 		contexts       map[string]*api.Context
@@ -184,7 +184,7 @@ func TestContextClientImpl_SwitchContext(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			config := createConfig(tt.fields.currentContext, tt.fields.contexts)
-			c := k8s.NewContextClientImpl(tt.fields.configAccess, config, tt.fields.modifyConfig)
+			c := k8scontext.NewClientImpl(tt.fields.configAccess, config, tt.fields.modifyConfig)
 			err := c.SwitchContext(tt.args.ctx, tt.args.namespace)
 
 			if tt.wantErr {
@@ -229,7 +229,7 @@ func TestContextClientImpl_DeleteContext(t *testing.T) {
 	}
 
 	type fields struct {
-		modifyConfig   k8s.ModifyConfigFunc
+		modifyConfig   k8scontext.ModifyConfigFunc
 		configAccess   clientcmd.ConfigAccess
 		currentContext string
 		contexts       map[string]*api.Context
@@ -272,7 +272,7 @@ func TestContextClientImpl_DeleteContext(t *testing.T) {
 			config := createConfig(tt.fields.currentContext, tt.fields.contexts)
 			originalContextKeys := maps.Keys(config.Contexts)
 
-			c := k8s.NewContextClientImpl(tt.fields.configAccess, config, tt.fields.modifyConfig)
+			c := k8scontext.NewClientImpl(tt.fields.configAccess, config, tt.fields.modifyConfig)
 			err := c.DeleteContext(tt.ctx)
 
 			if tt.wantErr {
@@ -293,7 +293,7 @@ func TestContextClientImpl_DeleteContext(t *testing.T) {
 			"test": api.NewContext(),
 		})
 
-		c := k8s.NewContextClientImpl(nil, config, nilModifyFunc)
+		c := k8scontext.NewClientImpl(nil, config, nilModifyFunc)
 		err := c.DeleteContext("test")
 
 		assert.Nil(t, err)
@@ -320,7 +320,7 @@ func TestContextClientImpl_DeleteUser(t *testing.T) {
 	}
 
 	type fields struct {
-		modifyConfig k8s.ModifyConfigFunc
+		modifyConfig k8scontext.ModifyConfigFunc
 		configAccess clientcmd.ConfigAccess
 		authInfos    map[string]*api.AuthInfo
 	}
@@ -362,7 +362,7 @@ func TestContextClientImpl_DeleteUser(t *testing.T) {
 			config := createConfig(tt.fields.authInfos)
 			originalAuthInfoKeys := maps.Keys(config.AuthInfos)
 
-			c := k8s.NewContextClientImpl(tt.fields.configAccess, config, tt.fields.modifyConfig)
+			c := k8scontext.NewClientImpl(tt.fields.configAccess, config, tt.fields.modifyConfig)
 			err := c.DeleteUser(tt.user)
 
 			if tt.wantErr {
@@ -396,7 +396,7 @@ func TestContextClientImpl_DeleteClusterEntry(t *testing.T) {
 	}
 
 	type fields struct {
-		modifyConfig k8s.ModifyConfigFunc
+		modifyConfig k8scontext.ModifyConfigFunc
 		configAccess clientcmd.ConfigAccess
 		clusters     map[string]*api.Cluster
 	}
@@ -438,7 +438,7 @@ func TestContextClientImpl_DeleteClusterEntry(t *testing.T) {
 			config := createConfig(tt.fields.clusters)
 			originalClusterKeys := maps.Keys(config.Clusters)
 
-			c := k8s.NewContextClientImpl(tt.fields.configAccess, config, tt.fields.modifyConfig)
+			c := k8scontext.NewClientImpl(tt.fields.configAccess, config, tt.fields.modifyConfig)
 			err := c.DeleteClusterEntry(tt.cluster)
 
 			if tt.wantErr {

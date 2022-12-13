@@ -4,6 +4,7 @@ import (
 	"kubeui/internal/app/cxs"
 	"kubeui/internal/app/pods"
 	"kubeui/internal/pkg/k8s"
+	"kubeui/internal/pkg/k8s/k8scontext"
 	"kubeui/internal/pkg/k8s/namespace"
 	k8spods "kubeui/internal/pkg/k8s/pods"
 	"kubeui/internal/pkg/kubeui"
@@ -46,9 +47,9 @@ func main() {
 
 	switch args.Program {
 	case "cxs":
-		m = cxs.NewModel(k8s.NewContextClientImpl(configAccess, rawConfig, nil))
+		m = cxs.NewModel(k8scontext.NewClientImpl(configAccess, rawConfig, nil))
 	case "pods":
-		m = pods.NewModel(k8s.NewContextClientImpl(configAccess, rawConfig, nil), k8s.NewK8sService(
+		m = pods.NewModel(k8scontext.NewClientImpl(configAccess, rawConfig, nil), k8s.NewK8sService(
 			k8spods.NewRepository(clientSet.CoreV1()),
 			namespace.NewRepository(clientSet.CoreV1()),
 		))

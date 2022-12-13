@@ -1,7 +1,7 @@
 package k8smsg_test
 
 import (
-	"kubeui/internal/pkg/k8s"
+	"kubeui/internal/pkg/k8s/pods"
 	"kubeui/internal/pkg/k8smsg"
 	"testing"
 
@@ -71,11 +71,11 @@ func TestNewPodDeletedMsg(t *testing.T) {
 
 func TestNewGetPodMsg(t *testing.T) {
 
-	expected := &k8s.Pod{Pod: v1.Pod{Status: v1.PodStatus{Message: "test"}}}
+	expected := &pods.Pod{Pod: v1.Pod{Status: v1.PodStatus{Message: "test"}}}
 
 	tests := []struct {
 		name string
-		pod  *k8s.Pod
+		pod  *pods.Pod
 		want k8smsg.GetPodMsg
 	}{
 		{"should work with nil", nil, k8smsg.GetPodMsg{Pod: nil}},

@@ -18,13 +18,13 @@ type Service interface {
 	// Lists pods in the specified namespace.
 	ListPods(namespace string) (*v1.PodList, error)
 	// Fetches information about a single pod, including events and logs.
-	GetPod(namespace, id string) (*Pod, error)
+	GetPod(namespace, id string) (*pods.Pod, error)
 	// Delete the pod with the specified name in the specified namespace.
 	// Returns the name of the deleted pod.
 	DeletePod(namespace, name string) (string, error)
 }
 
-// NewK8sService creates a new K8sClient.
+// NewK8sService creates a new Service.
 func NewK8sService(podsRepository pods.Repository, namespaceRepository namespace.Repository) Service {
 	return &K8sServiceImpl{
 		PodsRepository:      podsRepository,
@@ -71,7 +71,7 @@ func (c *K8sServiceImpl) ListPods(namespace string) (*v1.PodList, error) {
 }
 
 // GetPod fetches a pod in the current context and namespace.
-func (c *K8sServiceImpl) GetPod(namespace, name string) (*Pod, error) {
+func (c *K8sServiceImpl) GetPod(namespace, name string) (*pods.Pod, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -104,7 +104,7 @@ func (c *K8sServiceImpl) GetPod(namespace, name string) (*Pod, error) {
 		return nil, err
 	}
 
-	return &Pod{
+	return &pods.Pod{
 		Pod:    *pod,
 		Events: events.Items,
 		Logs:   logs,

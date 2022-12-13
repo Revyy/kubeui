@@ -1,7 +1,7 @@
-package k8s_test
+package pods_test
 
 import (
-	"kubeui/internal/pkg/k8s"
+	"kubeui/internal/pkg/k8s/pods"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -10,7 +10,7 @@ import (
 
 type containerNamesTest struct {
 	name     string
-	pod      *k8s.Pod
+	pod      *pods.Pod
 	expected []string
 }
 
@@ -22,12 +22,12 @@ var containerNamesTests = []containerNamesTest{
 	},
 	{
 		name:     "Should work with default values",
-		pod:      &k8s.Pod{},
+		pod:      &pods.Pod{},
 		expected: []string{},
 	},
 	{
 		name:     "Should return the correct container names",
-		pod:      &k8s.Pod{Pod: v1.Pod{Status: v1.PodStatus{ContainerStatuses: []v1.ContainerStatus{{Name: "test"}, {Name: "test2"}}}}},
+		pod:      &pods.Pod{Pod: v1.Pod{Status: v1.PodStatus{ContainerStatuses: []v1.ContainerStatus{{Name: "test"}, {Name: "test2"}}}}},
 		expected: []string{"test", "test2"},
 	},
 }
