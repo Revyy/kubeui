@@ -8,13 +8,13 @@ import (
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 )
 
-// Client defines the interface for the pods client.
-type Client interface {
+// Repository defines the interface for the pods client.
+type Repository interface {
 	List(ctx context.Context) (*v1.NamespaceList, error)
 }
 
-// NewClient creates a new Client.
-func NewClient(kubectl corev1.CoreV1Interface) Client {
+// NewRepository creates a new Client.
+func NewRepository(kubectl corev1.CoreV1Interface) Repository {
 	return &ClientImpl{
 		kubectl: kubectl,
 	}

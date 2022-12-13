@@ -13,8 +13,8 @@ import (
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 )
 
-// Client defines the interface for the pods client.
-type Client interface {
+// Repository defines the interface for the pods repository.
+type Repository interface {
 	Get(ctx context.Context, namespace, name string) (*v1.Pod, error)
 	Delete(ctx context.Context, namespace, name string) error
 	List(ctx context.Context, namespace string) (*v1.PodList, error)
@@ -22,8 +22,8 @@ type Client interface {
 	TailLogs(ctx context.Context, pod *v1.Pod, options LogsOptions) (map[string]string, error)
 }
 
-// NewClient creates a new Client.
-func NewClient(kubectl corev1.CoreV1Interface) Client {
+// NewRepository creates a new Client.
+func NewRepository(kubectl corev1.CoreV1Interface) Repository {
 	return &ClientImpl{
 		kubectl: kubectl,
 	}
@@ -83,6 +83,10 @@ func (c *ClientImpl) TailLogs(ctx context.Context, pod *v1.Pod, options LogsOpti
 			}
 
 			logsRequest := c.kubectl.Pods(pod.Namespace).GetLogs(pod.GetName(), &v1.PodLogOptions{Container: container.Name, TailLines: &tailLines})
+
+			if logsRequest == nil {
+				return fmt.Errorf("failed to issue request to fetch container logs for %s", container.Name)
+			}
 
 			podLogs, err := logsRequest.Stream(logsCtx)
 

@@ -8,13 +8,13 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
-type ContainerNamesTest struct {
+type containerNamesTest struct {
 	name     string
 	pod      *k8s.Pod
 	expected []string
 }
 
-var ContainerNamesTests = []ContainerNamesTest{
+var containerNamesTests = []containerNamesTest{
 	{
 		name:     "Should work with nil receivers",
 		pod:      nil,
@@ -34,7 +34,7 @@ var ContainerNamesTests = []ContainerNamesTest{
 
 func TestPod_ContainerNames(t *testing.T) {
 
-	for _, test := range ContainerNamesTests {
+	for _, test := range containerNamesTests {
 		t.Run(test.name, func(t *testing.T) {
 			got := test.pod.ContainerNames()
 			assert.Equal(t, got, test.expected, test.name)

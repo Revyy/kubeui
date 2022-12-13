@@ -24,18 +24,18 @@ type Service interface {
 	DeletePod(namespace, name string) (string, error)
 }
 
-// K8sServiceImpl is used to fetch data and issue commands to a kubernetes cluster.
-type K8sServiceImpl struct {
-	PodsClient      pods.Client
-	NamespaceClient namespace.Client
+// NewK8sService creates a new K8sClient.
+func NewK8sService(podsRepository pods.Repository, namespaceRepository namespace.Repository) Service {
+	return &K8sServiceImpl{
+		PodsRepository:      podsRepository,
+		NamespaceRepository: namespaceRepository,
+	}
 }
 
-// NewK8sService creates a new K8sClient.
-func NewK8sService(podsClient pods.Client, namespaceClient namespace.Client) Service {
-	return &K8sServiceImpl{
-		PodsClient:      podsClient,
-		NamespaceClient: namespaceClient,
-	}
+// K8sServiceImpl is used to fetch data and issue commands to a kubernetes cluster.
+type K8sServiceImpl struct {
+	PodsRepository      pods.Repository
+	NamespaceRepository namespace.Repository
 }
 
 // ListNamespaces fetches all namespaces for the current context.
@@ -44,7 +44,7 @@ func (c *K8sServiceImpl) ListNamespaces() (*v1.NamespaceList, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	namespaces, err := c.NamespaceClient.List(ctx)
+	namespaces, err := c.NamespaceRepository.List(ctx)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to list namespaces: %v", err)
@@ -60,7 +60,7 @@ func (c *K8sServiceImpl) ListPods(namespace string) (*v1.PodList, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	pods, err := c.PodsClient.List(ctx, namespace)
+	pods, err := c.PodsRepository.List(ctx, namespace)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to list namespaces: %v", err)
@@ -76,7 +76,7 @@ func (c *K8sServiceImpl) GetPod(namespace, name string) (*Pod, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	pod, err := c.PodsClient.Get(ctx, namespace, name)
+	pod, err := c.PodsRepository.Get(ctx, namespace, name)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get pod: %v", err)
@@ -85,7 +85,7 @@ func (c *K8sServiceImpl) GetPod(namespace, name string) (*Pod, error) {
 	eventsCtx, eventsCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer eventsCancel()
 
-	events, err := c.PodsClient.Events(eventsCtx, namespace, name)
+	events, err := c.PodsRepository.Events(eventsCtx, namespace, name)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get pod events: %v", err)
@@ -97,7 +97,7 @@ func (c *K8sServiceImpl) GetPod(namespace, name string) (*Pod, error) {
 	defer logsCancel()
 
 	if len(pod.Status.ContainerStatuses) > 0 {
-		logs, err = c.PodsClient.TailLogs(logsCtx, pod, pods.LogsOptions{})
+		logs, err = c.PodsRepository.TailLogs(logsCtx, pod, pods.LogsOptions{})
 	}
 
 	if err != nil {
@@ -118,7 +118,7 @@ func (c *K8sServiceImpl) DeletePod(namespace, name string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	err := c.PodsClient.Delete(ctx, namespace, name)
+	err := c.PodsRepository.Delete(ctx, namespace, name)
 
 	if err != nil {
 		return "", fmt.Errorf("failed to delete pod: %v", err)

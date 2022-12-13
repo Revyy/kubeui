@@ -49,8 +49,8 @@ func main() {
 		m = cxs.NewModel(k8s.NewContextClientImpl(configAccess, rawConfig, nil))
 	case "pods":
 		m = pods.NewModel(k8s.NewContextClientImpl(configAccess, rawConfig, nil), k8s.NewK8sService(
-			k8spods.NewClient(clientSet.CoreV1()),
-			namespace.NewClient(clientSet.CoreV1()),
+			k8spods.NewRepository(clientSet.CoreV1()),
+			namespace.NewRepository(clientSet.CoreV1()),
 		))
 	default:
 		log.Fatalf("no command called %s", args.Program)

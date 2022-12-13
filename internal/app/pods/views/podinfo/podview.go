@@ -71,8 +71,8 @@ func (v View) fullHelp() [][]key.Binding {
 	return bindings
 }
 
-// K8sClient represents the interface towards kubernetes needed by this view.
-type K8sClient interface {
+// K8sService represents the interface towards kubernetes needed by this view.
+type K8sService interface {
 	GetPod(namespace, id string) (*k8s.Pod, error)
 }
 
@@ -105,11 +105,11 @@ type View struct {
 	pod *k8s.Pod
 
 	// Kubernetes client.
-	k8sClient K8sClient
+	k8sClient K8sService
 }
 
 // New creates a new View.
-func New(k8sClient K8sClient, windowWidth, windowHeight int) View {
+func New(k8sClient K8sService, windowWidth, windowHeight int) View {
 
 	return View{
 		k8sClient:    k8sClient,
@@ -261,15 +261,22 @@ func (v View) updateViewportsAfterResize() View {
 	v.logsViewPort.Height = v.windowHeight - (lipgloss.Height(v.headerView(v.windowWidth, LOGS)) + lipgloss.Height(footerView(v.windowWidth, v.logsViewPort)))
 	v.logsViewPort.Width = v.windowWidth
 
-	if _, ok := v.pod.Logs[v.selectedContainer]; ok {
+	if _, ok := v.pod.Logs[v.selectedContainer]; ok && v.logsViewPort.Height > 0 {
 		v.logsViewPort.SetContent(strings.Join(jsoncolor.JSONLines(v.windowWidth, v.pod.Logs[v.selectedContainer]), "\n\n"))
+		v.logsViewPort.GotoBottom()
 	}
 
-	v.annotationsViewPort.SetContent(table.RowsToString(stringMapColumnsAndRows(v.windowWidth, "Key", "Value", v.pod.Pod.Annotations)))
-	v.labelsViewPort.SetContent(table.RowsToString(stringMapColumnsAndRows(v.windowWidth, "Key", "Value", v.pod.Pod.Labels)))
-	v.eventsViewPort.SetContent(table.RowsToString(eventColumnsAndRows(v.windowWidth, v.pod.Events)))
+	if v.annotationsViewPort.Height > 0 {
+		v.annotationsViewPort.SetContent(table.RowsToString(stringMapColumnsAndRows(v.windowWidth, "Key", "Value", v.pod.Pod.Annotations)))
+	}
 
-	v.logsViewPort.GotoBottom()
+	if v.labelsViewPort.Height > 0 {
+		v.labelsViewPort.SetContent(table.RowsToString(stringMapColumnsAndRows(v.windowWidth, "Key", "Value", v.pod.Pod.Labels)))
+	}
+
+	if v.eventsViewPort.Height > 0 {
+		v.eventsViewPort.SetContent(table.RowsToString(eventColumnsAndRows(v.windowWidth, v.pod.Events)))
+	}
 
 	return v
 }
