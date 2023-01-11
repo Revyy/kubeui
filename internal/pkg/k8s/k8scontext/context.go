@@ -82,16 +82,19 @@ func (c *ClientImpl) SwitchContext(ctx, namespace string) (err error) {
 		return fmt.Errorf("context %s doesn't exists", ctx)
 	}
 
+	oldContext := c.config.CurrentContext
+	c.config.CurrentContext = ctx
+
 	err = c.modifyConfig(c.configAccess, c.config, true)
 	if err != nil {
+		// Restore context if we fail to modify the config.
+		c.config.CurrentContext = oldContext
 		return fmt.Errorf("error ModifyConfig: %v", err)
 	}
 
 	if namespace != "" {
 		kubeCtx.Namespace = namespace
 	}
-
-	c.config.CurrentContext = ctx
 
 	return nil
 }
