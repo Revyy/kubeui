@@ -1,11 +1,10 @@
+// Package kubui provides a framework that you can use to build view based applications requiring access to kubernetes.
+// It is not meant to be a generic framework for building bubbletea based applications, instead if aims to solve specific problems
+// faced when building the kubui program.
 package kubeui
 
 import (
-	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/client-go/tools/clientcmd/api"
 )
 
 // View is intended to be a stateful component that completely
@@ -15,68 +14,4 @@ type View interface {
 	Update(Context, Msg) (Context, View, tea.Cmd)
 	View(Context) string
 	Destroy(Context) tea.Cmd
-}
-
-// Context contains the context of the kubeui application.
-type Context struct {
-	// object defining how the kubernetes config was located and put together.
-	// needed in order to modify the config files on disc.
-	ConfigAccess clientcmd.ConfigAccess
-
-	// ClientSet used to issue commands to kubernetes.
-	Kubectl *kubernetes.Clientset
-
-	// kubernetes config object.
-	ApiConfig api.Config
-
-	// Currently selected namespace
-	Namespace string
-
-	// Name of currently selected pod.
-	SelectedPod string
-}
-
-// Msg wraps the bubbletea message in a way that allows us to simplify some things.
-type Msg struct {
-	TeaMsg tea.Msg
-}
-
-// IsError tries to extract an error.
-func (m Msg) IsError() (error, bool) {
-	if e, ok := m.TeaMsg.(error); ok {
-		return e, ok
-	}
-	return nil, false
-}
-
-// IsWindowResize checks if the msg contains a tea.WindowResizeMsg.
-func (m Msg) IsWindowResize() bool {
-	_, ok := m.TeaMsg.(tea.WindowSizeMsg)
-	return ok
-}
-
-// GetWindowResizeMsg tries to extract a tea.WindowSizeMsg from the msg.
-func (m Msg) GetWindowResizeMsg() (tea.WindowSizeMsg, bool) {
-	w, ok := m.TeaMsg.(tea.WindowSizeMsg)
-	return w, ok
-}
-
-// IsKeyMsg checks if the message contains a key click.
-func (m Msg) IsKeyMsg() bool {
-
-	_, ok := m.TeaMsg.(tea.KeyMsg)
-
-	return ok
-}
-
-// MatchesKeyBindings checks if the message matches a specific KeyBinding.
-func (m Msg) MatchesKeyBindings(bindings ...key.Binding) bool {
-
-	keyMsg, ok := m.TeaMsg.(tea.KeyMsg)
-
-	if !ok {
-		return false
-	}
-
-	return key.Matches(keyMsg, bindings...)
 }

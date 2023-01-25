@@ -39,6 +39,8 @@ Allows you to select a kubecontext and/or deleting a context and identically nam
 ### pods [EXPERIMENTAL]
 A pod information tool
 Allows you to list pods for a selected namespace, with pagination and searching capabilities.
-You can also delete a pod.
 
-In future versions you will be able to inspect a pod.
+Additional features:
+
+* Deleting a pod
+* Inspecting a pod including viewing events and the latest log entries for each container.

@@ -6,12 +6,11 @@ import (
 	"kubeui/internal/app/pods/views/namespaceselection"
 	"kubeui/internal/app/pods/views/podinfo"
 	"kubeui/internal/app/pods/views/podselection"
+	"kubeui/internal/pkg/k8s"
+	"kubeui/internal/pkg/k8s/k8scontext"
 	"kubeui/internal/pkg/kubeui"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/client-go/tools/clientcmd/api"
 )
 
 // Model defines the base Model of the application.
@@ -29,20 +28,22 @@ type Model struct {
 	initializing bool
 	errorMessage string
 
+	contextClient k8scontext.Client
+	k8sService    k8s.Service
+
 	views map[string]kubeui.View
 }
 
 // NewModel creates a new model.
-func NewModel(rawConfig api.Config, configAccess clientcmd.ConfigAccess, clientSet *kubernetes.Clientset) *Model {
+func NewModel(contextClient k8scontext.Client, k8sService k8s.Service) *Model {
 	return &Model{
 		kubeuiContext: kubeui.Context{
-			ConfigAccess: configAccess,
-			Kubectl:      clientSet,
-			Namespace:    "default",
-			ApiConfig:    rawConfig,
+			Namespace: "default",
 		},
-		views:        map[string]kubeui.View{},
-		initializing: true,
+		contextClient: contextClient,
+		k8sService:    k8sService,
+		views:         map[string]kubeui.View{},
+		initializing:  true,
 	}
 }
 
@@ -53,7 +54,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Global Keypresses and app messages.
 	switch msgT := msg.(type) {
 	case Initialize:
-		currentContext, ok := m.kubeuiContext.ApiConfig.Contexts[m.kubeuiContext.ApiConfig.CurrentContext]
+		currentContext, ok := m.contextClient.CurrentApiContext()
 
 		if !ok {
 			return m, kubeui.Error(fmt.Errorf("invalid context"))
@@ -136,16 +137,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m Model) initializeView(viewId string) kubeui.View {
 	switch viewId {
 	case "pod_selection":
-		return podselection.New(m.windowWidth, m.windowHeight)
+		return podselection.New(m.k8sService, m.contextClient, m.windowWidth, m.windowHeight)
 	case "namespace_selection":
-		return namespaceselection.New(m.windowWidth, m.windowHeight)
+		return namespaceselection.New(m.k8sService, m.contextClient, m.windowWidth, m.windowHeight)
 	case "pod_info":
-		return podinfo.New(m.windowWidth, m.windowHeight)
+		return podinfo.New(m.k8sService, m.windowWidth, m.windowHeight)
 	case "error_info":
 		return errorinfo.New(m.errorMessage, m.windowWidth, m.windowHeight)
 	}
 
-	return namespaceselection.New(m.windowWidth, m.windowHeight)
+	return namespaceselection.New(m.k8sService, m.contextClient, m.windowWidth, m.windowHeight)
 }
 
 // View returns the view for the model.

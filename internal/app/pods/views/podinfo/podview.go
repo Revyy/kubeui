@@ -2,9 +2,13 @@ package podinfo
 
 import (
 	"fmt"
-	"kubeui/internal/pkg/k8s"
-	"kubeui/internal/pkg/k8scommand"
+	"kubeui/internal/pkg/jsoncolor"
+	"kubeui/internal/pkg/k8s/pods"
+	"kubeui/internal/pkg/k8smsg"
 	"kubeui/internal/pkg/kubeui"
+	"kubeui/internal/pkg/ui/help"
+	"kubeui/internal/pkg/ui/selection"
+	"kubeui/internal/pkg/ui/table"
 	"strconv"
 	"strings"
 
@@ -67,15 +71,9 @@ func (v View) fullHelp() [][]key.Binding {
 	return bindings
 }
 
-// New creates a new View.
-func New(windowWidth, windowHeight int) View {
-
-	return View{
-		windowWidth:  windowWidth,
-		windowHeight: windowHeight,
-		keys:         newKeyMap(),
-		tabs:         []string{STATUS.String(), ANNOTATIONS.String(), LABELS.String(), EVENTS.String(), LOGS.String()},
-	}
+// K8sService represents the interface towards kubernetes needed by this view.
+type K8sService interface {
+	GetPod(namespace, id string) (*pods.Pod, error)
 }
 
 // View displays pod information.
@@ -104,7 +102,22 @@ type View struct {
 	// Show full help view or not.
 	showFullHelp bool
 
-	pod *k8s.Pod
+	pod *pods.Pod
+
+	// Kubernetes client.
+	k8sClient K8sService
+}
+
+// New creates a new View.
+func New(k8sClient K8sService, windowWidth, windowHeight int) View {
+
+	return View{
+		k8sClient:    k8sClient,
+		windowWidth:  windowWidth,
+		windowHeight: windowHeight,
+		keys:         newKeyMap(),
+		tabs:         []string{STATUS.String(), ANNOTATIONS.String(), LABELS.String(), EVENTS.String(), LOGS.String()},
+	}
 }
 
 // tab defines the different tabs of the component.
@@ -180,7 +193,14 @@ func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.V
 		v = v.moveTabRight()
 		return c, v, nil
 	case msg.MatchesKeyBindings(v.keys.Refresh):
-		return c, v, k8scommand.GetPod(c.Kubectl, c.Namespace, c.SelectedPod)
+
+		pod, err := v.k8sClient.GetPod(c.Namespace, c.SelectedPod)
+
+		if err != nil {
+			return c, v, kubeui.Error(err)
+		}
+
+		return c, v, kubeui.GenericCmd(k8smsg.NewGetPodMsg(pod))
 	case msg.MatchesKeyBindings(v.keys.NumberChoice) && v.tab == LOGS:
 
 		v, err := v.selectContainer(msg)
@@ -191,7 +211,7 @@ func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.V
 
 		// If the selected container has logs then update the logview.
 		if _, ok := v.pod.Logs[v.selectedContainer]; ok {
-			v.logsViewPort.SetContent(strings.Join(kubeui.JSONLines(v.windowWidth, v.pod.Logs[v.selectedContainer]), "\n\n"))
+			v.logsViewPort.SetContent(strings.Join(jsoncolor.JSONLines(v.windowWidth, v.pod.Logs[v.selectedContainer]), "\n\n"))
 			v.logsViewPort.GotoBottom()
 		}
 
@@ -200,7 +220,7 @@ func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.V
 
 	// Results
 	switch t := msg.TeaMsg.(type) {
-	case k8scommand.GetPodMsg:
+	case k8smsg.GetPodMsg:
 
 		if !v.initialized {
 			v.initialized = true
@@ -241,15 +261,22 @@ func (v View) updateViewportsAfterResize() View {
 	v.logsViewPort.Height = v.windowHeight - (lipgloss.Height(v.headerView(v.windowWidth, LOGS)) + lipgloss.Height(footerView(v.windowWidth, v.logsViewPort)))
 	v.logsViewPort.Width = v.windowWidth
 
-	if _, ok := v.pod.Logs[v.selectedContainer]; ok {
-		v.logsViewPort.SetContent(strings.Join(kubeui.JSONLines(v.windowWidth, v.pod.Logs[v.selectedContainer]), "\n\n"))
+	if _, ok := v.pod.Logs[v.selectedContainer]; ok && v.logsViewPort.Height > 0 {
+		v.logsViewPort.SetContent(strings.Join(jsoncolor.JSONLines(v.windowWidth, v.pod.Logs[v.selectedContainer]), "\n\n"))
+		v.logsViewPort.GotoBottom()
 	}
 
-	v.annotationsViewPort.SetContent(kubeui.RowsString(kubeui.StringMapTable(v.windowWidth, "Key", "Value", v.pod.Pod.Annotations)))
-	v.labelsViewPort.SetContent(kubeui.RowsString(kubeui.StringMapTable(v.windowWidth, "Key", "Value", v.pod.Pod.Labels)))
-	v.eventsViewPort.SetContent(kubeui.RowsString(kubeui.EventsTable(v.windowWidth, v.pod.Events)))
+	if v.annotationsViewPort.Height > 0 {
+		v.annotationsViewPort.SetContent(table.RowsToString(stringMapColumnsAndRows(v.windowWidth, "Key", "Value", v.pod.Pod.Annotations)))
+	}
 
-	v.logsViewPort.GotoBottom()
+	if v.labelsViewPort.Height > 0 {
+		v.labelsViewPort.SetContent(table.RowsToString(stringMapColumnsAndRows(v.windowWidth, "Key", "Value", v.pod.Pod.Labels)))
+	}
+
+	if v.eventsViewPort.Height > 0 {
+		v.eventsViewPort.SetContent(table.RowsToString(eventColumnsAndRows(v.windowWidth, v.pod.Events)))
+	}
 
 	return v
 }
@@ -313,7 +340,7 @@ func (v View) selectContainer(msg kubeui.Msg) (View, error) {
 func (v View) View(c kubeui.Context) string {
 
 	if v.showFullHelp {
-		return kubeui.FullHelp(v.windowWidth, v.fullHelp())
+		return help.Full(v.windowWidth, v.fullHelp())
 	}
 
 	builder := strings.Builder{}
@@ -326,8 +353,8 @@ func (v View) View(c kubeui.Context) string {
 
 	switch v.tab {
 	case STATUS:
-		columns, row := kubeui.PodStatusTable(v.pod.Pod)
-		builder.WriteString(kubeui.RowsString(columns, []*kubeui.DataRow{row}))
+		columns, row := podStatusColumnsAndRows(v.pod.Pod)
+		builder.WriteString(table.RowsToString(columns, []table.DataRow{row}))
 		return builder.String()
 
 	case ANNOTATIONS:
@@ -361,7 +388,7 @@ func (v View) headerView(width int, forTab tab) string {
 
 	builder := strings.Builder{}
 
-	builder.WriteString(kubeui.ShortHelp(width, []key.Binding{
+	builder.WriteString(help.Short(width, []key.Binding{
 		v.keys.Help,
 		v.keys.Quit,
 		v.keys.Refresh,
@@ -371,10 +398,10 @@ func (v View) headerView(width int, forTab tab) string {
 
 	builder.WriteString("\n\n")
 
-	builder.WriteString(kubeui.TabsSelect(int(forTab), width, v.tabs) + "\n\n")
+	builder.WriteString(selection.Tabs(int(forTab), width, v.tabs) + "\n\n")
 
 	if forTab == LOGS {
-		builder.WriteString(kubeui.HorizontalSelectList(v.containerNames, v.selectedContainer, width))
+		builder.WriteString(selection.HorizontalList(v.containerNames, v.selectedContainer, width))
 		builder.WriteString("\n")
 	}
 
@@ -385,24 +412,24 @@ func (v View) headerView(width int, forTab tab) string {
 
 // tableHeaderView creates the table header view.
 // Producing table headers seperately from the rows allows us to let the content scroll past the headers without hiding them.
-func tableHeaderView(width int, t tab, pod k8s.Pod) string {
+func tableHeaderView(width int, t tab, pod pods.Pod) string {
 
-	var columns []*kubeui.DataColumn
+	var columns []table.DataColumn
 	switch t {
 	case STATUS:
-		columns, _ = kubeui.PodStatusTable(pod.Pod)
+		columns, _ = podStatusColumnsAndRows(pod.Pod)
 	case ANNOTATIONS:
-		columns, _ = kubeui.StringMapTable(width, "Key", "Value", pod.Pod.Annotations)
+		columns, _ = stringMapColumnsAndRows(width, "Key", "Value", pod.Pod.Annotations)
 	case LABELS:
-		columns, _ = kubeui.StringMapTable(width, "Key", "Value", pod.Pod.Labels)
+		columns, _ = stringMapColumnsAndRows(width, "Key", "Value", pod.Pod.Labels)
 	case EVENTS:
-		columns, _ = kubeui.EventsTable(width, pod.Events)
+		columns, _ = eventColumnsAndRows(width, pod.Events)
 	case LOGS:
 		return strings.Repeat("─", width) + "\n"
 	}
 
 	line := strings.Repeat("─", width)
-	return lipgloss.NewStyle().Width(width).Render(kubeui.ColumnsString(columns)) + "\n" + lipgloss.JoinHorizontal(lipgloss.Center, line) + "\n\n"
+	return lipgloss.NewStyle().Width(width).Render(table.ColumnsToString(columns)) + "\n" + lipgloss.JoinHorizontal(lipgloss.Center, line) + "\n\n"
 }
 
 // footerView creates the footerView which contains information about how far the user has scrolled through the viewPort.
@@ -415,7 +442,14 @@ func footerView(width int, viewPort viewport.Model) string {
 
 // Init initializes the view.
 func (v View) Init(c kubeui.Context) tea.Cmd {
-	return k8scommand.GetPod(c.Kubectl, c.Namespace, c.SelectedPod)
+
+	pod, err := v.k8sClient.GetPod(c.Namespace, c.SelectedPod)
+
+	if err != nil {
+		return kubeui.Error(err)
+	}
+
+	return kubeui.GenericCmd(k8smsg.NewGetPodMsg(pod))
 }
 
 // Destroy is called before a view is removed as the active view in the application.

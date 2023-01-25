@@ -3,9 +3,10 @@ package namespaceselection
 import (
 	"fmt"
 	"kubeui/internal/pkg/component/searchtable"
-	"kubeui/internal/pkg/k8s"
-	"kubeui/internal/pkg/k8scommand"
+	"kubeui/internal/pkg/k8smsg"
 	"kubeui/internal/pkg/kubeui"
+	"kubeui/internal/pkg/ui/help"
+	"kubeui/internal/pkg/ui/statusbar"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -36,13 +37,15 @@ func (v View) fullHelp() [][]key.Binding {
 	return bindings
 }
 
-// New creates a new View.
-func New(windowWidth, windowHeight int) View {
-	return View{
-		windowWidth:  windowWidth,
-		windowHeight: windowHeight,
-		keys:         newKeyMap(),
-	}
+// K8sClient represents the interface towards kubernetes needed by this view.
+type K8sClient interface {
+	ListNamespaces() (*v1.NamespaceList, error)
+}
+
+// ContextClient represents the interface for working with kubernetes contexts that the view needs.
+type ContextClient interface {
+	CurrentContext() string
+	SwitchContext(ctx, namespace string) (err error)
 }
 
 // View allows the user to select a namespace.
@@ -63,6 +66,23 @@ type View struct {
 
 	// If the View has been initialized or not.
 	initialized bool
+
+	// Kubernetes client.
+	k8sClient K8sClient
+
+	// KubeContext client.
+	contextClient ContextClient
+}
+
+// New creates a new View.
+func New(k8sClient K8sClient, contextClient ContextClient, windowWidth, windowHeight int) View {
+	return View{
+		k8sClient:     k8sClient,
+		contextClient: contextClient,
+		windowWidth:   windowWidth,
+		windowHeight:  windowHeight,
+		keys:          newKeyMap(),
+	}
 }
 
 // Update handles new messages from the runtime.
@@ -103,7 +123,7 @@ func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.V
 	// Results
 	switch t := msg.TeaMsg.(type) {
 
-	case k8scommand.ListNamespacesMsg:
+	case k8smsg.ListNamespacesMsg:
 		v.namespaces = slices.Map(t.NamespaceList.Items, func(n v1.Namespace) string {
 			return n.GetName()
 		})
@@ -122,7 +142,7 @@ func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.V
 
 	case searchtable.Selection:
 
-		err := k8s.SwitchContext(c.ApiConfig.CurrentContext, t.Value, c.ConfigAccess, c.ApiConfig)
+		err := v.contextClient.SwitchContext(v.contextClient.CurrentContext(), t.Value)
 		if err != nil {
 			return c, v, kubeui.Error(err)
 		}
@@ -142,15 +162,15 @@ func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.V
 func (v View) View(c kubeui.Context) string {
 
 	if v.showFullHelp {
-		return kubeui.FullHelp(v.windowWidth, v.fullHelp())
+		return help.Full(v.windowWidth, v.fullHelp())
 	}
 
 	builder := strings.Builder{}
 
-	builder.WriteString(kubeui.ShortHelp(v.windowWidth, []key.Binding{v.keys.Help, v.keys.Quit, v.keys.ExitView}))
+	builder.WriteString(help.Short(v.windowWidth, []key.Binding{v.keys.Help, v.keys.Quit, v.keys.ExitView}))
 	builder.WriteString("\n\n")
 
-	statusBar := kubeui.StatusBar(v.windowWidth-1, " ", fmt.Sprintf("Context: %s", c.ApiConfig.CurrentContext))
+	statusBar := statusbar.New(v.windowWidth-1, " ", fmt.Sprintf("Context: %s", v.contextClient.CurrentContext()))
 	builder.WriteString(statusBar + "\n")
 
 	builder.WriteString(v.namespaceTable.View())
@@ -163,7 +183,14 @@ func (v View) Init(c kubeui.Context) tea.Cmd {
 	if v.initialized {
 		return nil
 	}
-	return k8scommand.ListNamespaces(c.Kubectl)
+
+	namespaces, err := v.k8sClient.ListNamespaces()
+
+	if err != nil {
+		return kubeui.Error(err)
+	}
+
+	return kubeui.GenericCmd(k8smsg.NewListNamespacesMsg(namespaces))
 }
 
 // Destroy is called before a view is removed as the active view in the application.

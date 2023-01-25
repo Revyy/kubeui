@@ -1,7 +1,8 @@
-package k8scommand
+// Package k8smsg wraps kubernetes data types in message types suitable to be consumed by a kubeui program.
+package k8smsg
 
 import (
-	"kubeui/internal/pkg/k8s"
+	"kubeui/internal/pkg/k8s/pods"
 
 	v1 "k8s.io/api/core/v1"
 )
@@ -38,14 +39,10 @@ func NewPodDeletedMsg(name string) PodDeletedMsg {
 
 // GetPodMsg is used as the result of fetching a pod in the current namespace.
 type GetPodMsg struct {
-	Pod *k8s.Pod
+	Pod *pods.Pod
 }
 
 // NewGetPod creates a new GetPod message.
-func NewGetPodMsg(pod *v1.Pod, events []v1.Event, logs map[string]string) GetPodMsg {
-	return GetPodMsg{Pod: &k8s.Pod{
-		Pod:    *pod,
-		Events: events,
-		Logs:   logs,
-	}}
+func NewGetPodMsg(pod *pods.Pod) GetPodMsg {
+	return GetPodMsg{Pod: pod}
 }

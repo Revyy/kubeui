@@ -1,3 +1,4 @@
+// Package help provides methods of rendering a help view.
 package help
 
 /* Modified version of the help component included in the bubbles library.

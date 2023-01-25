@@ -6,8 +6,10 @@ import (
 	"kubeui/internal/pkg/component/columntable"
 	"kubeui/internal/pkg/component/confirm"
 	"kubeui/internal/pkg/k8s"
-	"kubeui/internal/pkg/k8scommand"
+	"kubeui/internal/pkg/k8smsg"
 	"kubeui/internal/pkg/kubeui"
+	"kubeui/internal/pkg/ui/help"
+	"kubeui/internal/pkg/ui/statusbar"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -49,14 +51,15 @@ func (v View) fullHelp() [][]key.Binding {
 	return bindings
 }
 
-// New creates a new View.
-func New(windowWidth, windowHeight int) View {
-	return View{
-		windowWidth:  windowWidth,
-		windowHeight: windowHeight,
-		keys:         newKeyMap(),
-		loading:      true,
-	}
+// K8sClient represents the interface towards kubernetes needed by this view.
+type K8sClient interface {
+	ListPods(namespace string) (*v1.PodList, error)
+	DeletePod(namespace, name string) (string, error)
+}
+
+// ContextClient represents the interface for working with kubernetes contexts that the view needs.
+type ContextClient interface {
+	CurrentContext() string
 }
 
 // View is used to select a pod.
@@ -83,6 +86,24 @@ type View struct {
 
 	// Show full help view or not.
 	showFullHelp bool
+
+	// Kubernetes client.
+	k8sClient K8sClient
+
+	// KubeContext client.
+	contextClient ContextClient
+}
+
+// New creates a new View.
+func New(k8sClient K8sClient, contextClient ContextClient, windowWidth, windowHeight int) View {
+	return View{
+		k8sClient:     k8sClient,
+		contextClient: contextClient,
+		windowWidth:   windowWidth,
+		windowHeight:  windowHeight,
+		keys:          newKeyMap(),
+		loading:       true,
+	}
 }
 
 // Update handles new messages from the runtime.
@@ -120,12 +141,19 @@ func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.V
 	}
 
 	if msg.MatchesKeyBindings(v.keys.Refresh) {
-		return c, v, k8scommand.ListPods(c.Kubectl, c.Namespace)
+
+		podList, err := v.k8sClient.ListPods(c.Namespace)
+
+		if err != nil {
+			return c, v, kubeui.Error(err)
+		}
+
+		return c, v, kubeui.GenericCmd(k8smsg.NewListPodsMsg(podList))
 	}
 
 	// Results
 	switch t := msg.TeaMsg.(type) {
-	case k8scommand.ListPodsMsg:
+	case k8smsg.ListPodsMsg:
 		v.pods = t.PodList.Items
 		podColumns, podRows := podTableContents(v.pods)
 		var cmd tea.Cmd
@@ -155,15 +183,31 @@ func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.V
 		return c, v, nil
 
 	// When a pod is actually deleted we refresh the pod list by returning the listPods command.
-	case k8scommand.PodDeletedMsg:
-		return c, v, k8scommand.ListPods(c.Kubectl, c.Namespace)
+	case k8smsg.PodDeletedMsg:
+
+		podList, err := v.k8sClient.ListPods(c.Namespace)
+
+		if err != nil {
+			return c, v, kubeui.Error(err)
+		}
+
+		return c, v, kubeui.GenericCmd(k8smsg.NewListPodsMsg(podList))
 
 	case confirm.ButtonPress:
 		v.activeDialog = nil
-		if t.Pressed.Desc == "Yes" {
-			return c, v, k8scommand.DeletePod(c.Kubectl, c.Namespace, t.Pressed.Id)
+
+		if t.Pressed.Desc != "Yes" {
+			return c, v, nil
 		}
-		return c, v, nil
+
+		name, err := v.k8sClient.DeletePod(c.Namespace, t.Pressed.Id)
+
+		if err != nil {
+			return c, v, kubeui.Error(err)
+		}
+
+		return c, v, kubeui.GenericCmd(k8smsg.NewPodDeletedMsg(name))
+
 	}
 
 	// If we have an active dialog.
@@ -215,12 +259,12 @@ func podTableContents(pods []v1.Pod) ([]*columntable.Column, []*columntable.Row)
 func (v View) View(c kubeui.Context) string {
 
 	if v.showFullHelp {
-		return kubeui.FullHelp(v.windowWidth, v.fullHelp())
+		return help.Full(v.windowWidth, v.fullHelp())
 	}
 
 	builder := strings.Builder{}
 
-	builder.WriteString(kubeui.ShortHelp(v.windowWidth, []key.Binding{v.keys.Help, v.keys.Quit, v.keys.SelectNamespace, v.keys.Refresh}))
+	builder.WriteString(help.Short(v.windowWidth, []key.Binding{v.keys.Help, v.keys.Quit, v.keys.SelectNamespace, v.keys.Refresh}))
 	builder.WriteString("\n\n")
 
 	if v.activeDialog != nil {
@@ -228,7 +272,7 @@ func (v View) View(c kubeui.Context) string {
 		return builder.String()
 	}
 
-	podViewStatusBar := kubeui.StatusBar(v.windowWidth-1, " ", fmt.Sprintf("Context: %s  Namespace: %s", c.ApiConfig.CurrentContext, c.Namespace))
+	podViewStatusBar := statusbar.New(v.windowWidth-1, " ", fmt.Sprintf("Context: %s  Namespace: %s", v.contextClient.CurrentContext(), c.Namespace))
 	builder.WriteString(podViewStatusBar + "\n")
 
 	if v.loading {
@@ -244,7 +288,14 @@ func (v View) View(c kubeui.Context) string {
 
 // Init initializes the view.
 func (v View) Init(c kubeui.Context) tea.Cmd {
-	return k8scommand.ListPods(c.Kubectl, c.Namespace)
+
+	podList, err := v.k8sClient.ListPods(c.Namespace)
+
+	if err != nil {
+		return kubeui.Error(err)
+	}
+
+	return kubeui.GenericCmd(k8smsg.NewListPodsMsg(podList))
 }
 
 // Destroy is called before a view is removed as the active view in the application.
