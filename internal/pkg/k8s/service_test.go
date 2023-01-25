@@ -10,12 +10,12 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
-type mockNamespaceClient struct {
+type mockNamespaceRepository struct {
 	namespaceList *v1.NamespaceList
 	err           error
 }
 
-func (c *mockNamespaceClient) List(ctx context.Context) (*v1.NamespaceList, error) {
+func (c *mockNamespaceRepository) List(ctx context.Context) (*v1.NamespaceList, error) {
 	if c.err != nil {
 		return nil, c.err
 	}
@@ -24,16 +24,16 @@ func (c *mockNamespaceClient) List(ctx context.Context) (*v1.NamespaceList, erro
 }
 
 type listNamespacesTest struct {
-	name     string
-	client   *mockNamespaceClient
-	wantErr  bool
-	expected *v1.NamespaceList
+	name       string
+	repository *mockNamespaceRepository
+	wantErr    bool
+	expected   *v1.NamespaceList
 }
 
 var listNamespacesTests = []listNamespacesTest{
-	{"Namespace client returns error", &mockNamespaceClient{nil, fmt.Errorf("error")}, true, nil},
-	{"Namespace client returns empty list", &mockNamespaceClient{&v1.NamespaceList{}, nil}, false, &v1.NamespaceList{}},
-	{"Namespace client returns non empty list", &mockNamespaceClient{
+	{"Namespace client returns error", &mockNamespaceRepository{nil, fmt.Errorf("error")}, true, nil},
+	{"Namespace client returns empty list", &mockNamespaceRepository{&v1.NamespaceList{}, nil}, false, &v1.NamespaceList{}},
+	{"Namespace client returns non empty list", &mockNamespaceRepository{
 		&v1.NamespaceList{
 			Items: []v1.Namespace{
 				{Spec: v1.NamespaceSpec{
@@ -57,7 +57,7 @@ var listNamespacesTests = []listNamespacesTest{
 
 func TestListNamespaces(t *testing.T) {
 	for _, test := range listNamespacesTests {
-		service := k8s.NewK8sService(nil, test.client)
+		service := k8s.NewK8sService(nil, test.repository)
 		got, err := service.ListNamespaces()
 
 		if test.wantErr {
