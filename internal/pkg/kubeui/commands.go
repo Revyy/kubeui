@@ -7,13 +7,6 @@ func Exit() tea.Cmd {
 	return tea.Quit
 }
 
-// GenericCmd is used to wrap some data in a command.
-func GenericCmd(data interface{}) tea.Cmd {
-	return func() tea.Msg {
-		return data
-	}
-}
-
 // Error is used to return errors.
 func Error(err error) tea.Cmd {
 	return func() tea.Msg { return err }

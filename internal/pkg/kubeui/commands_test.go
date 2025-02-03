@@ -2,8 +2,9 @@ package kubeui_test
 
 import (
 	"fmt"
-	"kubeui/internal/pkg/kubeui"
 	"testing"
+
+	"kubeui/internal/pkg/kubeui"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/stretchr/testify/assert"
@@ -19,28 +20,6 @@ func TestError(t *testing.T) {
 	cmd := kubeui.Error(err)
 
 	assert.Equal(t, err, cmd())
-}
-
-func TestGenericCmd(t *testing.T) {
-	type testStruct struct{ name string }
-
-	tests := []struct {
-		name string
-		data interface{}
-	}{
-		{"Should work for strings", "test"},
-		{"Should work for ints", 10},
-		{"Should work for structs", testStruct{name: "test"}},
-		{"Should work for pointers", &testStruct{name: "test"}},
-		{"Should work for nil", nil},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := kubeui.GenericCmd(tt.data)
-
-			assert.Equal(t, tt.data, got())
-		})
-	}
 }
 
 func TestExitView(t *testing.T) {
