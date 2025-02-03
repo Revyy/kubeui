@@ -10,7 +10,6 @@ require (
 	github.com/charmbracelet/bubbletea v1.2.4
 	github.com/charmbracelet/lipgloss v1.0.0
 	github.com/life4/genesis v1.10.3
-	github.com/muesli/reflow v0.3.0
 	github.com/muesli/termenv v0.15.2
 	github.com/stretchr/testify v1.10.0
 	golang.org/x/sync v0.10.0
