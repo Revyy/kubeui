@@ -2,6 +2,7 @@ package pods
 
 import (
 	"fmt"
+
 	"kubeui/internal/app/pods/views/errorinfo"
 	"kubeui/internal/app/pods/views/namespaceselection"
 	"kubeui/internal/app/pods/views/podinfo"
@@ -50,7 +51,6 @@ func NewModel(contextClient k8scontext.Client, k8sService k8s.Service) *Model {
 // Update updates the model and optionally returns a command.
 // It is part of the bubbletea model interface.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-
 	// Global Keypresses and app messages.
 	switch msgT := msg.(type) {
 	case Initialize:
@@ -60,7 +60,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, kubeui.Error(fmt.Errorf("invalid context"))
 		}
 
-		m.kubeuiContext.Namespace = currentContext.Namespace
+		if currentContext.Namespace != "" {
+			m.kubeuiContext.Namespace = currentContext.Namespace
+		}
 
 		if m.kubeuiContext.Namespace == "default" {
 			return m, kubeui.PushView("namespace_selection", true)
@@ -164,7 +166,6 @@ type Initialize struct{}
 // Init returns an initial command.
 // It is part of the bubbletea model interface.
 func (m Model) Init() tea.Cmd {
-
 	return func() tea.Msg {
 		return Initialize{}
 	}
