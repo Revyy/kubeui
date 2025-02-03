@@ -7,6 +7,16 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
+// ContextDeletedMsg is sent after a context has been deleted.
+type ContextDeletedMsg struct {
+	Name string
+}
+
+// NewContextDeletedMsg creates a new ContextDeleted message.
+func NewContextDeletedMsg(name string) ContextDeletedMsg {
+	return ContextDeletedMsg{Name: name}
+}
+
 // ListNamespacesMsg is sent after fetching a list of available namespaces.
 type ListNamespacesMsg struct {
 	NamespaceList *v1.NamespaceList

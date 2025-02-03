@@ -2,12 +2,13 @@ package namespaceselection
 
 import (
 	"fmt"
+	"strings"
+
 	"kubeui/internal/pkg/component/searchtable"
 	"kubeui/internal/pkg/k8smsg"
 	"kubeui/internal/pkg/kubeui"
 	"kubeui/internal/pkg/ui/help"
 	"kubeui/internal/pkg/ui/statusbar"
-	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -28,7 +29,6 @@ func newKeyMap() *keyMap {
 }
 
 func (v View) fullHelp() [][]key.Binding {
-
 	bindings := [][]key.Binding{
 		{v.keys.Help, v.keys.Quit, v.keys.ExitView},
 	}
@@ -36,6 +36,9 @@ func (v View) fullHelp() [][]key.Binding {
 
 	return bindings
 }
+
+// selectedNamespaceMsg is sent when a namespace has been selected and the k8s context has successfully been updated.
+type selectedNamespaceMsg string
 
 // K8sClient represents the interface towards kubernetes needed by this view.
 type K8sClient interface {
@@ -87,7 +90,6 @@ func New(k8sClient K8sClient, contextClient ContextClient, windowWidth, windowHe
 
 // Update handles new messages from the runtime.
 func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.View, tea.Cmd) {
-
 	if msg.IsWindowResize() {
 		windowResizeMsg, ok := msg.GetWindowResizeMsg()
 
@@ -141,13 +143,16 @@ func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.V
 		return c, v, nil
 
 	case searchtable.Selection:
-
-		err := v.contextClient.SwitchContext(v.contextClient.CurrentContext(), t.Value)
-		if err != nil {
-			return c, v, kubeui.Error(err)
+		return c, v, func() tea.Msg {
+			err := v.contextClient.SwitchContext(v.contextClient.CurrentContext(), t.Value)
+			if err != nil {
+				return err
+			}
+			return selectedNamespaceMsg(t.Value)
 		}
 
-		c.Namespace = t.Value
+	case selectedNamespaceMsg:
+		c.Namespace = string(t)
 		// If we have made a selection then we reinitialize the pod selection view to load the pods for that namespace.
 		return c, v, kubeui.PushView("pod_selection", true)
 
@@ -160,7 +165,6 @@ func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.V
 
 // View renders the ui of the view.
 func (v View) View(c kubeui.Context) string {
-
 	if v.showFullHelp {
 		return help.Full(v.windowWidth, v.fullHelp())
 	}
@@ -184,13 +188,14 @@ func (v View) Init(c kubeui.Context) tea.Cmd {
 		return nil
 	}
 
-	namespaces, err := v.k8sClient.ListNamespaces()
+	return func() tea.Msg {
+		namespaces, err := v.k8sClient.ListNamespaces()
+		if err != nil {
+			return err
+		}
 
-	if err != nil {
-		return kubeui.Error(err)
+		return k8smsg.NewListNamespacesMsg(namespaces)
 	}
-
-	return kubeui.GenericCmd(k8smsg.NewListNamespacesMsg(namespaces))
 }
 
 // Destroy is called before a view is removed as the active view in the application.

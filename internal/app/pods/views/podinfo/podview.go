@@ -191,12 +191,14 @@ func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.V
 		return c, v, nil
 	case msg.MatchesKeyBindings(v.keys.Refresh):
 
-		pod, err := v.k8sClient.GetPod(c.Namespace, c.SelectedPod)
-		if err != nil {
-			return c, v, kubeui.Error(err)
+		return c, v, func() tea.Msg {
+			pod, err := v.k8sClient.GetPod(c.Namespace, c.SelectedPod)
+			if err != nil {
+				return err
+			}
+			return k8smsg.NewGetPodMsg(pod)
 		}
 
-		return c, v, kubeui.GenericCmd(k8smsg.NewGetPodMsg(pod))
 	case msg.MatchesKeyBindings(v.keys.NumberChoice) && v.tab == LOGS:
 
 		v, err := v.selectContainer(msg)
@@ -433,12 +435,14 @@ func footerView(width int, viewPort viewport.Model) string {
 
 // Init initializes the view.
 func (v View) Init(c kubeui.Context) tea.Cmd {
-	pod, err := v.k8sClient.GetPod(c.Namespace, c.SelectedPod)
-	if err != nil {
-		return kubeui.Error(err)
-	}
+	return func() tea.Msg {
+		pod, err := v.k8sClient.GetPod(c.Namespace, c.SelectedPod)
+		if err != nil {
+			return err
+		}
 
-	return kubeui.GenericCmd(k8smsg.NewGetPodMsg(pod))
+		return k8smsg.NewGetPodMsg(pod)
+	}
 }
 
 // Destroy is called before a view is removed as the active view in the application.

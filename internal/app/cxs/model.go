@@ -2,12 +2,14 @@ package cxs
 
 import (
 	"fmt"
+	"sort"
+	"strings"
+
 	"kubeui/internal/pkg/component/confirm"
 	"kubeui/internal/pkg/component/searchtable"
 	"kubeui/internal/pkg/k8s/k8scontext"
+	"kubeui/internal/pkg/k8smsg"
 	"kubeui/internal/pkg/ui/help"
-	"sort"
-	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -34,9 +36,15 @@ func newAppKeyMap() *appKeyMap {
 	}
 }
 
+// selectedContext is a type used to represent the selected context.
+type selectedContext string
+
+func (s selectedContext) String() string {
+	return string(s)
+}
+
 // Model defines the base Model of the application.
 type Model struct {
-
 	// Client for manipulating kube-contexts.
 	contextClient k8scontext.Client
 
@@ -59,7 +67,6 @@ type Model struct {
 
 // NewModel creates a new cxs model.
 func NewModel(contextClient k8scontext.Client) *Model {
-
 	contexts := contextClient.Contexts()
 	sort.Strings(contexts)
 
@@ -90,7 +97,6 @@ func (m Model) FullHelp() [][]key.Binding {
 // Update updates the model and optionally returns a command.
 // It is part of the bubbletea model interface.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-
 	switch msg := msg.(type) {
 
 	case tea.WindowSizeMsg:
@@ -112,13 +118,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 
 	case searchtable.Selection:
-		err := m.contextClient.SwitchContext(msg.Value, "")
-		if err != nil {
-			return m, func() tea.Msg { return err }
+
+		return m, func() tea.Msg {
+			err := m.contextClient.SwitchContext(msg.Value, "")
+			if err != nil {
+				return err
+			}
+
+			return selectedContext(msg.Value)
 		}
+
+	case selectedContext:
 		var cmd tea.Cmd
-		m.table, cmd = m.table.Update(searchtable.UpdateHighlighted{Item: msg.Value})
+		m.table, cmd = m.table.Update(searchtable.UpdateHighlighted{Item: msg.String()})
 		return m, cmd
+
 	case searchtable.Deletion:
 		dialog := confirm.New([]confirm.Button{{Desc: "Yes", Id: msg.Value}, {Desc: "No", Id: msg.Value}}, fmt.Sprintf("Are you sure you want to delete %s", msg.Value))
 		m.activeDialog = &dialog
@@ -131,15 +145,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
-		err := deleteContext(msg.Pressed.Id, m.contextClient)
+		return m, func() tea.Msg {
+			err := deleteContext(msg.Pressed.Id, m.contextClient)
+			if err != nil {
+				return err
+			}
 
-		if err != nil {
-			return m, tea.Quit
+			return k8smsg.NewContextDeletedMsg(msg.Pressed.Id)
 		}
 
+	case k8smsg.ContextDeletedMsg:
 		items := []string{}
 		for _, k := range m.contextClient.Contexts() {
-			if k != msg.Pressed.Id {
+			if k != msg.Name {
 				items = append(items, k)
 			}
 		}
@@ -161,19 +179,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.table, cmd = m.table.Update(msg)
 
 	return m, cmd
-
 }
 
 // deleteContext deletes a kubernetes context and the corresponding cluster entry and user entry.
 func deleteContext(kubeCtx string, contextClient k8scontext.Client) error {
 	err := contextClient.DeleteContext(kubeCtx)
-
 	if err != nil {
 		return err
 	}
 
 	err = contextClient.DeleteClusterEntry(kubeCtx)
-
 	if err != nil {
 		return err
 	}
@@ -186,7 +201,6 @@ func deleteContext(kubeCtx string, contextClient k8scontext.Client) error {
 // View returns the view for the model.
 // It is part of the bubbletea model interface.
 func (m Model) View() string {
-
 	builder := strings.Builder{}
 
 	helpView := help.Short(m.windowSize.Width, m.ShortHelp())

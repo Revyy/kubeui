@@ -2,6 +2,7 @@ package podselection
 
 import (
 	"fmt"
+	"strings"
 
 	"kubeui/internal/pkg/component/columntable"
 	"kubeui/internal/pkg/component/confirm"
@@ -10,7 +11,6 @@ import (
 	"kubeui/internal/pkg/kubeui"
 	"kubeui/internal/pkg/ui/help"
 	"kubeui/internal/pkg/ui/statusbar"
-	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -37,7 +37,6 @@ func newKeyMap() *keyMap {
 }
 
 func (v View) fullHelp() [][]key.Binding {
-
 	bindings := [][]key.Binding{
 		{v.keys.Help, v.keys.Quit, v.keys.Refresh},
 	}
@@ -108,7 +107,6 @@ func New(k8sClient K8sClient, contextClient ContextClient, windowWidth, windowHe
 
 // Update handles new messages from the runtime.
 func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.View, tea.Cmd) {
-
 	if msg.IsKeyMsg() && v.showFullHelp {
 		v.showFullHelp = false
 		return c, v, nil
@@ -141,14 +139,13 @@ func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.V
 	}
 
 	if msg.MatchesKeyBindings(v.keys.Refresh) {
-
-		podList, err := v.k8sClient.ListPods(c.Namespace)
-
-		if err != nil {
-			return c, v, kubeui.Error(err)
+		return c, v, func() tea.Msg {
+			podList, err := v.k8sClient.ListPods(c.Namespace)
+			if err != nil {
+				return err
+			}
+			return k8smsg.NewListPodsMsg(podList)
 		}
-
-		return c, v, kubeui.GenericCmd(k8smsg.NewListPodsMsg(podList))
 	}
 
 	// Results
@@ -175,23 +172,12 @@ func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.V
 		c.SelectedPod = t.Id
 		return c, v, kubeui.PushView("pod_info", true)
 
-	// When the user tries to delete a pod we create a new confirmation dialog and move to the CONFIRM_POD_DELETION state which will
+	// When the user tries to delete a pod we create a new confirmation dialog which will
 	// display the dialog and handle the choice.
 	case columntable.Deletion:
 		dialog := confirm.New([]confirm.Button{{Desc: "Yes", Id: t.Id}, {Desc: "No", Id: t.Id}}, fmt.Sprintf("Are you sure you want to delete %s", t.Id))
 		v.activeDialog = &dialog
 		return c, v, nil
-
-	// When a pod is actually deleted we refresh the pod list by returning the listPods command.
-	case k8smsg.PodDeletedMsg:
-
-		podList, err := v.k8sClient.ListPods(c.Namespace)
-
-		if err != nil {
-			return c, v, kubeui.Error(err)
-		}
-
-		return c, v, kubeui.GenericCmd(k8smsg.NewListPodsMsg(podList))
 
 	case confirm.ButtonPress:
 		v.activeDialog = nil
@@ -200,13 +186,18 @@ func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.V
 			return c, v, nil
 		}
 
-		name, err := v.k8sClient.DeletePod(c.Namespace, t.Pressed.Id)
+		return c, v, func() tea.Msg {
+			_, err := v.k8sClient.DeletePod(c.Namespace, t.Pressed.Id)
+			if err != nil {
+				return err
+			}
 
-		if err != nil {
-			return c, v, kubeui.Error(err)
+			podList, err := v.k8sClient.ListPods(c.Namespace)
+			if err != nil {
+				return err
+			}
+			return k8smsg.NewListPodsMsg(podList)
 		}
-
-		return c, v, kubeui.GenericCmd(k8smsg.NewPodDeletedMsg(name))
 
 	}
 
@@ -236,7 +227,6 @@ func podTableContents(pods []v1.Pod) ([]*columntable.Column, []*columntable.Row)
 	}
 
 	podRows := slices.Map(pods, func(p v1.Pod) *columntable.Row {
-
 		podFormat := k8s.NewListPodFormat(p)
 
 		// Update widths of the name and status columns
@@ -257,7 +247,6 @@ func podTableContents(pods []v1.Pod) ([]*columntable.Column, []*columntable.Row)
 
 // View renders the ui of the view.
 func (v View) View(c kubeui.Context) string {
-
 	if v.showFullHelp {
 		return help.Full(v.windowWidth, v.fullHelp())
 	}
@@ -288,14 +277,14 @@ func (v View) View(c kubeui.Context) string {
 
 // Init initializes the view.
 func (v View) Init(c kubeui.Context) tea.Cmd {
+	return func() tea.Msg {
+		podList, err := v.k8sClient.ListPods(c.Namespace)
+		if err != nil {
+			return err
+		}
 
-	podList, err := v.k8sClient.ListPods(c.Namespace)
-
-	if err != nil {
-		return kubeui.Error(err)
+		return k8smsg.NewListPodsMsg(podList)
 	}
-
-	return kubeui.GenericCmd(k8smsg.NewListPodsMsg(podList))
 }
 
 // Destroy is called before a view is removed as the active view in the application.
