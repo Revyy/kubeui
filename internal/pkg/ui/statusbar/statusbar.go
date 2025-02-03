@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/reflow/wrap"
 )
 
 // StatusBarStyle is used to create a status bar displaying key information about the running app.
@@ -20,7 +19,6 @@ var statusBarStyle = lipgloss.NewStyle().
 // New returns a string representing a status bar.
 // Values are printed with separator in between.
 func New(width int, separator string, values ...string) string {
-
 	if width <= 0 {
 		return ""
 	}
@@ -31,5 +29,5 @@ func New(width int, separator string, values ...string) string {
 		builder.WriteString(fmt.Sprintf("%s%s", v, separator))
 	}
 
-	return wrap.String(statusBarStyle.Render(strings.TrimRight(builder.String(), separator)), width)
+	return lipgloss.NewStyle().Width(width).Render(statusBarStyle.Render(strings.TrimRight(builder.String(), separator)))
 }

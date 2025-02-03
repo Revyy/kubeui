@@ -2,6 +2,9 @@ package podinfo
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
+
 	"kubeui/internal/pkg/jsoncolor"
 	"kubeui/internal/pkg/k8s/pods"
 	"kubeui/internal/pkg/k8smsg"
@@ -9,14 +12,11 @@ import (
 	"kubeui/internal/pkg/ui/help"
 	"kubeui/internal/pkg/ui/selection"
 	"kubeui/internal/pkg/ui/table"
-	"strconv"
-	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/reflow/wrap"
 	"k8s.io/utils/integer"
 )
 
@@ -48,7 +48,6 @@ func newKeyMap() *keyMap {
 }
 
 func (v View) fullHelp() [][]key.Binding {
-
 	bindings := [][]key.Binding{
 		{v.keys.Help, v.keys.Quit, v.keys.Refresh, v.keys.ExitView},
 	}
@@ -110,7 +109,6 @@ type View struct {
 
 // New creates a new View.
 func New(k8sClient K8sService, windowWidth, windowHeight int) View {
-
 	return View{
 		k8sClient:    k8sClient,
 		windowWidth:  windowWidth,
@@ -155,7 +153,6 @@ func (t tab) String() string {
 
 // Update handles new messages from the runtime.
 func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.View, tea.Cmd) {
-
 	if msg.IsKeyMsg() && v.showFullHelp {
 		v.showFullHelp = false
 		return c, v, nil
@@ -195,7 +192,6 @@ func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.V
 	case msg.MatchesKeyBindings(v.keys.Refresh):
 
 		pod, err := v.k8sClient.GetPod(c.Namespace, c.SelectedPod)
-
 		if err != nil {
 			return c, v, kubeui.Error(err)
 		}
@@ -204,7 +200,6 @@ func (v View) Update(c kubeui.Context, msg kubeui.Msg) (kubeui.Context, kubeui.V
 	case msg.MatchesKeyBindings(v.keys.NumberChoice) && v.tab == LOGS:
 
 		v, err := v.selectContainer(msg)
-
 		if err != nil {
 			return c, v, kubeui.Error(err)
 		}
@@ -322,7 +317,6 @@ func (v View) moveTabRight() View {
 func (v View) selectContainer(msg kubeui.Msg) (View, error) {
 	key := msg.TeaMsg.(tea.KeyMsg)
 	intKey, err := strconv.Atoi(key.String())
-
 	if err != nil {
 		return v, err
 	}
@@ -338,7 +332,6 @@ func (v View) selectContainer(msg kubeui.Msg) (View, error) {
 
 // View renders the ui of the view.
 func (v View) View(c kubeui.Context) string {
-
 	if v.showFullHelp {
 		return help.Full(v.windowWidth, v.fullHelp())
 	}
@@ -413,7 +406,6 @@ func (v View) headerView(width int, forTab tab) string {
 // tableHeaderView creates the table header view.
 // Producing table headers seperately from the rows allows us to let the content scroll past the headers without hiding them.
 func tableHeaderView(width int, t tab, pod pods.Pod) string {
-
 	var columns []table.DataColumn
 	switch t {
 	case STATUS:
@@ -434,17 +426,14 @@ func tableHeaderView(width int, t tab, pod pods.Pod) string {
 
 // footerView creates the footerView which contains information about how far the user has scrolled through the viewPort.
 func footerView(width int, viewPort viewport.Model) string {
-
 	info := fmt.Sprintf("%3.f%%", viewPort.ScrollPercent()*100)
 	line := strings.Repeat("─", integer.IntMax(0, width-lipgloss.Width(info)))
-	return "[0m" + "\n" + wrap.String(lipgloss.JoinHorizontal(lipgloss.Center, line, info), width)
+	return "\x1b[0m" + "\n" + lipgloss.NewStyle().Width(width).Render(lipgloss.JoinHorizontal(lipgloss.Center, line, info))
 }
 
 // Init initializes the view.
 func (v View) Init(c kubeui.Context) tea.Cmd {
-
 	pod, err := v.k8sClient.GetPod(c.Namespace, c.SelectedPod)
-
 	if err != nil {
 		return kubeui.Error(err)
 	}
